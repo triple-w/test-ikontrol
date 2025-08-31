@@ -1,0 +1,32 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        Schema::table('productos', function (Blueprint $table) {
+            // Asegura índices
+            $table->index('clave_prod_serv_id', 'idx_prod_clave_prod_serv_id');
+            $table->index('clave_unidad_id', 'idx_prod_clave_unidad_id');
+
+            // FKs a tus tablas reales
+            $table->foreign('clave_prod_serv_id', 'fk_prod_clave_prod_serv_id')
+                  ->references('id')->on('clave_prod_serv');
+            $table->foreign('clave_unidad_id', 'fk_prod_clave_unidad_id')
+                  ->references('id')->on('clave_unidad');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('productos', function (Blueprint $table) {
+            $table->dropForeign('fk_prod_clave_prod_serv_id');
+            $table->dropForeign('fk_prod_clave_unidad_id');
+            $table->dropIndex('idx_prod_clave_prod_serv_id');
+            $table->dropIndex('idx_prod_clave_unidad_id');
+        });
+    }
+};

@@ -1,0 +1,12 @@
+    # BEGIN CloudLinux ALT-PHP handler, do not edit
+    # Set the “alt-php82” package as the default “PHP” programming language.
+    <IfModule mime_module>
+        AddHandler application/x-httpd-alt-php82 .php .php8 .phtml
+    </IfModule>
+    # END CloudLinux ALT-PHP handler, do not edit.
+    # /.htaccess (raíz del proyecto)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
+</IfModule>
