@@ -29,12 +29,15 @@ Route::redirect('/', '/dashboard');
 // -------- Cambiar RFC activo (lo usa tu dropdown del header)
 Route::post('/cambiar-rfc', [RfcController::class, 'cambiar'])->name('rfc.cambiar');
 
-// ======================== ÁREA AUTENTICADA ========================
-Route::middleware(['auth'])->group(function () {
 
-    // Crear factura (una sola pantalla)
+Route::middleware(['auth'])->group(function () {
     Route::get('/facturacion/facturas/crear',  [FacturasController::class, 'create'])->name('facturas.crear');
     Route::post('/facturacion/facturas',       [FacturasController::class, 'store'])->name('facturas.store');
+});
+
+
+// ======================== ÁREA AUTENTICADA ========================
+Route::middleware(['auth'])->group(function () {
 
     // ======================== CATÁLOGOS ========================
     Route::prefix('catalogos')->group(function () {
