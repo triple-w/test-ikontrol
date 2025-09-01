@@ -10,6 +10,8 @@ use App\Http\Controllers\Catalogos\FoliosController;
 use App\Http\Controllers\Catalogos\EmpleadosController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Facturacion\FacturasHistorialController;
+use App\Http\Controllers\FacturasWizardController;
+
 use App\Http\Controllers\Facturacion\NominasHistorialController;
 use App\Http\Controllers\Facturacion\ComplementosHistorialController;
 
@@ -30,6 +32,13 @@ Route::post('/cambiar-rfc', [RfcController::class, 'cambiar'])->name('rfc.cambia
 
 // ======================== ÁREA AUTENTICADA ========================
 Route::middleware(['auth'])->group(function () {
+
+    Route::get('/facturas/nueva', [FacturasWizardController::class, 'create'])->name('facturas.wizard.create');
+    Route::post('/facturas/timbrar', [FacturasWizardController::class, 'timbrar'])->name('facturas.wizard.timbrar');
+
+    // (opcional, para autocompletar) endpoints ligeros:
+    Route::get('/api/clientes', [FacturasWizardController::class, 'clientes'])->name('api.clientes');    // ?q=
+    Route::get('/api/productos', [FacturasWizardController::class, 'productos'])->name('api.productos'); // ?q=
 
     // ======================== CATÁLOGOS ========================
     Route::prefix('catalogos')->group(function () {
