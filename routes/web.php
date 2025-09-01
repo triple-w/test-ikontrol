@@ -12,6 +12,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Facturacion\FacturasHistorialController;
 use App\Http\Controllers\Facturacion\NominasHistorialController;
 use App\Http\Controllers\Facturacion\ComplementosHistorialController;
+use App\Http\Controllers\Facturacion\FacturasController;
 
 use App\Http\Controllers\Configuracion\SellosController;
 use App\Http\Controllers\Configuracion\PerfilRfcController;
@@ -30,6 +31,10 @@ Route::post('/cambiar-rfc', [RfcController::class, 'cambiar'])->name('rfc.cambia
 
 // ======================== ÁREA AUTENTICADA ========================
 Route::middleware(['auth'])->group(function () {
+
+    // Crear factura (una sola pantalla)
+    Route::get('/facturacion/facturas/crear',  [FacturasController::class, 'create'])->name('facturas.crear');
+    Route::post('/facturacion/facturas',       [FacturasController::class, 'store'])->name('facturas.store');
 
     // ======================== CATÁLOGOS ========================
     Route::prefix('catalogos')->group(function () {
