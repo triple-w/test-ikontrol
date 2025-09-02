@@ -13,42 +13,46 @@ use Illuminate\Support\Str;
 class FacturaUiController extends Controller
 {
     public function create(Request $request)
-        {
-            $rfcActivo = session('rfc_seleccionado');
-            $emisor = \Auth::user()->rfcs->firstWhere('rfc', $rfcActivo);
+    {
+        $user = $request->user();
 
-            // 👇 columnas reales de tu tabla clientes
-            $clientes = \App\Models\Cliente::orderBy('razon_social')->get([
-                'id',
-                'razon_social',
-                'rfc',
-                'calle',
-                'no_ext',
-                'no_int',
-                'colonia',
-                'localidad',
-                'estado',
-                'codigo_postal',
-                'pais',
+        // 1) Obtén el RFC activo desde sesión (compatibles con nombres anteriores)
+        $rfcUsuarioId = session('rfc_usuario_id') ?? session('rfc_activo_id');
+
+        // 2) Si no hubiera en sesión, toma el primero del usuario (detectando la FK)
+        if (!$rfcUsuarioId) {
+            $colUserRU = null;
+            foreach (['users_id', 'user_id', 'usuario_id'] as $c) {
+                if (Schema::hasColumn('rfc_usuarios', $c)) { $colUserRU = $c; break; }
+            }
+            $q = DB::table('rfc_usuarios');
+            if ($colUserRU) $q->where($colUserRU, $user->id);
+            $rfcUsuarioId = $q->orderBy('id')->value('id');
+            if ($rfcUsuarioId) {
+                session(['rfc_usuario_id' => $rfcUsuarioId]);
+            }
+        }
+
+        // 3) RFC texto para mostrar en la cabecera
+        $rfcActivo = DB::table('rfc_usuarios')->where('id', $rfcUsuarioId)->value('rfc') ?? '—';
+
+        // 4) Lista de clientes con los campos que pediste
+        $clientes = DB::table('clientes')
+            ->when(Schema::hasColumn('clientes', 'rfc_usuario_id'),
+                fn($q) => $q->where('rfc_usuario_id', $rfcUsuarioId))
+            ->orderBy('razon_social', 'asc')
+            ->get([
+                'id','rfc','razon_social',
+                'calle','no_ext','no_int','colonia','localidad','estado','codigo_postal','pais',
                 'email',
             ]);
 
-            $seedProds = \App\Models\Producto::orderBy('descripcion')->limit(20)->get([
-                'id','descripcion','precio','clave_prod_serv_id','clave_unidad_id','unidad'
-            ]);
-
-            $max = \Carbon\Carbon::now();
-            $min = (clone $max)->subHours(72);
-
-            // 👇 apunta a resources/views/facturacion/facturas/create.blade.php
-            return view('facturacion.facturas.create', [
-                'emisor'   => $emisor,
-                'clientes' => $clientes,
-                'seedProds'=> $seedProds,
-                'fechaMin' => $min->format('Y-m-d\TH:i'),
-                'fechaMax' => $max->format('Y-m-d\TH:i'),
-            ]);
-        }
+        return view('facturacion.facturas.create', [
+            'rfcUsuarioId' => (int) $rfcUsuarioId,
+            'rfcActivo'    => $rfcActivo,
+            'clientes'     => $clientes,
+        ]);
+    }
 
     // Serie/Folio automáticos por tipo (I,E,P,N)
     public function nextFolio(Request $request)

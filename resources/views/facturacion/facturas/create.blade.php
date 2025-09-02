@@ -23,6 +23,11 @@
     })->values()->toJson();
 @endphp
 
+@php
+    $rfcUsuarioId = $rfcUsuarioId ?? (session('rfc_usuario_id') ?? session('rfc_activo_id') ?? 0);
+@endphp
+
+
 <div
     x-data="facturaForm({
         rfcUsuarioId: {{ (int) $rfcUsuarioId }},
