@@ -13,6 +13,7 @@ use App\Http\Controllers\Facturacion\FacturasHistorialController;
 use App\Http\Controllers\Facturacion\NominasHistorialController;
 use App\Http\Controllers\Facturacion\ComplementosHistorialController;
 use App\Http\Controllers\Facturacion\FacturasController;
+use App\Http\Controllers\Facturacion\FacturaUiController;
 
 use App\Http\Controllers\Configuracion\SellosController;
 use App\Http\Controllers\Configuracion\PerfilRfcController;
@@ -30,10 +31,20 @@ Route::redirect('/', '/dashboard');
 Route::post('/cambiar-rfc', [RfcController::class, 'cambiar'])->name('rfc.cambiar');
 
 
-Route::middleware(['auth'])->group(function () {
-    Route::get('/facturacion/facturas/crear',  [FacturasController::class, 'create'])->name('facturas.create');
-    Route::post('/facturacion/facturas',       [FacturasController::class, 'store'])->name('facturas.store');
+
+
+Route::middleware(['web','auth'])->group(function () {
+    // pantalla
+    Route::get('/facturacion/facturas/crear', [FacturaUiController::class, 'create'])
+        ->name('facturas.crear');
+
+    // APIs para la UI
+    Route::get('/api/series/next',  [FacturaUiController::class, 'nextFolio'])->name('api.series.next');
+    Route::get('/api/productos/buscar', [FacturaUiController::class, 'buscarProductos'])->name('api.productos.buscar');
+    Route::post('/facturacion/facturas/preview', [FacturaUiController::class, 'preview'])->name('facturas.preview');
+    Route::post('/facturacion/facturas/guardar', [FacturaUiController::class, 'store'])->name('facturas.store'); // (placeholder)
 });
+
 
 // ======================== ÁREA AUTENTICADA ========================
 Route::middleware(['auth'])->group(function () {
