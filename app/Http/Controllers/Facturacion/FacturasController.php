@@ -28,7 +28,7 @@ class FacturasController extends Controller
             ->when($rfcId, fn($q) => $q->where('rfc_usuario_id', $rfcId))
             ->orderBy('descripcion')
             ->limit(200)
-            ->get(['id','descripcion','clave_prod_serv','clave_unidad','unidad','precio','objeto_imp']);
+            ->get(['id','descripcion','clave_prod_serv_id','clave_unidad_id','unidad','precio']);
 
         $usosCfdi   = ['G01','G02','G03','S01','CP01','D01','D02','D03','D04','D05','D06','D07','D08','D09','D10','P01'];
         $formasPago = ['01'=>'Efectivo','02'=>'Cheque','03'=>'Transferencia','04'=>'Tarjeta crédito','28'=>'Tarjeta débito','99'=>'Por definir'];
