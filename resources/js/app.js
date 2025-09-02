@@ -5,11 +5,25 @@ Livewire.start()
 import './bootstrap';
 
 
+
+
 // Import Chart.js
 import { Chart } from 'chart.js';
 
 // Import flatpickr
 import flatpickr from 'flatpickr';
+
+// resources/js/app.js
+import Alpine from 'alpinejs'
+import persist from '@alpinejs/persist' // si lo usas en el proyecto
+
+window.Alpine = Alpine
+Alpine.plugin(persist) // ¡Solo una vez!
+Alpine.start()
+
+// Si usas axios global:
+import axios from 'axios'
+window.axios = axios
 
 // import component from './components/component';
 import dashboardCard01 from './components/dashboard-card-01';

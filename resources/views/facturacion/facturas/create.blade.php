@@ -308,7 +308,6 @@
 
 @push('scripts')
 <script>
-document.addEventListener('alpine:init', () => {
   window.facturaForm = (opts) => ({
     // ----- estado -----
     form: {
@@ -443,6 +442,6 @@ document.addEventListener('alpine:init', () => {
       alert('Timbrar: pendiente de integrar lógica de timbrado');
     },
   });
-});
+
 </script>
 @endpush
