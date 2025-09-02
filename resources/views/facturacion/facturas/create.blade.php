@@ -44,16 +44,16 @@
   @endphp
 
   <div
-    x-data="facturaForm({
+    x-data='facturaForm({
       rfcUsuarioId: {{ (int) $rfcUsuarioId }},
       clientes: {!! $clientesJson !!},
-      minFecha: '{{ $minFecha }}',
-      maxFecha: '{{ $maxFecha }}',
-      apiSeriesNext: '{{ url('/api/series/next') }}',
-      apiProductosBuscar: '{{ url('/api/productos/buscar') }}',
-      routeClienteUpdateBase: '{{ url('/catalogos/clientes') }}',
-      csrf: '{{ csrf_token() }}'
-    })"
+      minFecha: "{{ $minFecha }}",
+      maxFecha: "{{ $maxFecha }}",
+      apiSeriesNext: "{{ url('/api/series/next') }}",
+      apiProductosBuscar: "{{ url('/api/productos/buscar') }}",
+      routeClienteUpdateBase: "{{ url('/catalogos/clientes') }}",
+      csrf: "{{ csrf_token() }}"
+    })'
     class="space-y-6"
   >
     {{-- DATOS DEL COMPROBANTE --}}
