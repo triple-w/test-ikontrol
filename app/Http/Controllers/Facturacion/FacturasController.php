@@ -37,7 +37,7 @@ class FacturasController extends Controller
         $tiposComprobante = ['I'=>'Ingreso','E'=>'Egreso','P'=>'Pago','T'=>'Traslado'];
         $tiposRelacion   = ['01'=>'Nota de crédito','02'=>'Nota de débito','03'=>'Devolución','04'=>'Sustitución','07'=>'Aplicación de anticipo'];
 
-        return view('facturacion.facturas.crear', compact(
+        return view('facturacion.facturas.create', compact(
             'emisor','clientes','productos',
             'usosCfdi','formasPago','metodos','monedas',
             'tiposComprobante','tiposRelacion'
