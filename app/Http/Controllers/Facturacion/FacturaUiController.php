@@ -26,7 +26,7 @@ class FacturaUiController extends Controller
         $max = Carbon::now();
         $min = (clone $max)->subHours(72);
 
-        return view('facturacion.facturas.crear', [
+        return view('facturacion.facturas.create', [
             'emisor'   => $emisor,
             'clientes' => $clientes,
             'seedProds'=> $seedProds,

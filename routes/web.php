@@ -36,7 +36,7 @@ Route::post('/cambiar-rfc', [RfcController::class, 'cambiar'])->name('rfc.cambia
 Route::middleware(['web','auth'])->group(function () {
     // pantalla
     Route::get('/facturacion/facturas/crear', [FacturaUiController::class, 'create'])
-        ->name('facturas.crear');
+        ->name('facturas.create');
 
     // APIs para la UI
     Route::get('/api/series/next',  [FacturaUiController::class, 'nextFolio'])->name('api.series.next');

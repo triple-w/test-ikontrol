@@ -110,7 +110,7 @@ class FacturasController extends Controller
         // DB::table('facturas_detalles')->insert([...]);
 
         if ($accion === 'borrador') {
-            return redirect()->route('facturas.crear')
+            return redirect()->route('facturas.create')
                 ->with('ok', "Borrador guardado (#{$facturaId}).");
         }
 
@@ -132,7 +132,7 @@ class FacturasController extends Controller
         // TODO: cuando tengamos el PAC, aquí llamamos al servicio real
         //       y guardamos el XML timbrado + acuse.
 
-        return redirect()->route('facturas.crear')
+        return redirect()->route('facturas.create')
             ->with('ok', "Factura timbrada (simulada) UUID {$uuid}.");
     }
 
