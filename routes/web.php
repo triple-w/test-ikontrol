@@ -31,7 +31,7 @@ Route::post('/cambiar-rfc', [RfcController::class, 'cambiar'])->name('rfc.cambia
 
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('/facturacion/facturas/crear',  [FacturasController::class, 'create'])->name('facturas.crear');
+    Route::get('/facturacion/facturas/crear',  [FacturasController::class, 'create'])->name('facturas.create');
     Route::post('/facturacion/facturas',       [FacturasController::class, 'store'])->name('facturas.store');
 });
 
