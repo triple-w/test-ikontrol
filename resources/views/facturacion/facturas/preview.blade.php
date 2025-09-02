@@ -19,8 +19,14 @@ th{background:#f9fafb; text-align:left;}
 <h3>Receptor</h3>
 <p>
     <strong>{{ data_get($cliente,'razon_social') }}</strong><br>
-    RFC: {{ data_get($cliente,'rfc') }} · Uso CFDI: {{ data_get($cliente,'uso_cfdi') }}
+    RFC: {{ data_get($cliente,'rfc') }}<br>
+    {{ data_get($cliente,'calle') }} {{ data_get($cliente,'no_ext') }}
+    {{ data_get($cliente,'no_int') ? ' Int. '.data_get($cliente,'no_int') : '' }},
+    Col. {{ data_get($cliente,'colonia') }}, {{ data_get($cliente,'localidad') }},
+    {{ data_get($cliente,'estado') }}, CP {{ data_get($cliente,'codigo_postal') }}, {{ data_get($cliente,'pais') }}<br>
+    Email: {{ data_get($cliente,'email') }}
 </p>
+
 
 <h3>Conceptos</h3>
 <table>

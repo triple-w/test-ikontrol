@@ -13,27 +13,42 @@ use Illuminate\Support\Str;
 class FacturaUiController extends Controller
 {
     public function create(Request $request)
-    {
-        $rfcActivo = session('rfc_seleccionado');        // ya lo traes en sesión
-        $emisor = Auth::user()->rfcs->firstWhere('rfc', $rfcActivo);
+        {
+            $rfcActivo = session('rfc_seleccionado');
+            $emisor = \Auth::user()->rfcs->firstWhere('rfc', $rfcActivo);
 
-        // catálogos base (clientes + primeros N productos para “seed” del autocompletar)
-        $clientes  = Cliente::orderBy('razon_social')->get(['id','razon_social','rfc','uso_cfdi','codigo_postal','regimen_fiscal_id','correo']);
-        $seedProds = Producto::orderBy('descripcion')->limit(20)
-            ->get(['id','descripcion','precio','clave_prod_serv_id','clave_unidad_id','unidad']);
+            // 👇 columnas reales de tu tabla clientes
+            $clientes = \App\Models\Cliente::orderBy('razon_social')->get([
+                'id',
+                'razon_social',
+                'rfc',
+                'calle',
+                'no_ext',
+                'no_int',
+                'colonia',
+                'localidad',
+                'estado',
+                'codigo_postal',
+                'pais',
+                'email',
+            ]);
 
-        // límites de fecha: últimas 72 horas
-        $max = Carbon::now();
-        $min = (clone $max)->subHours(72);
+            $seedProds = \App\Models\Producto::orderBy('descripcion')->limit(20)->get([
+                'id','descripcion','precio','clave_prod_serv_id','clave_unidad_id','unidad'
+            ]);
 
-        return view('facturacion.facturas.create', [
-            'emisor'   => $emisor,
-            'clientes' => $clientes,
-            'seedProds'=> $seedProds,
-            'fechaMin' => $min->format('Y-m-d\TH:i'),
-            'fechaMax' => $max->format('Y-m-d\TH:i'),
-        ]);
-    }
+            $max = \Carbon\Carbon::now();
+            $min = (clone $max)->subHours(72);
+
+            // 👇 apunta a resources/views/facturacion/facturas/create.blade.php
+            return view('facturacion.facturas.create', [
+                'emisor'   => $emisor,
+                'clientes' => $clientes,
+                'seedProds'=> $seedProds,
+                'fechaMin' => $min->format('Y-m-d\TH:i'),
+                'fechaMax' => $max->format('Y-m-d\TH:i'),
+            ]);
+        }
 
     // Serie/Folio automáticos por tipo (I,E,P,N)
     public function nextFolio(Request $request)
