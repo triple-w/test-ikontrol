@@ -35,7 +35,6 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/facturacion/facturas',       [FacturasController::class, 'store'])->name('facturas.store');
 });
 
-
 // ======================== ÁREA AUTENTICADA ========================
 Route::middleware(['auth'])->group(function () {
 
@@ -101,7 +100,6 @@ Route::middleware(['auth'])->group(function () {
         Route::get('nominas/{nomina}/xml',     [NominasHistorialController::class,'descargarXml'])->name('nominas.xml');
 
         // Placeholders de creación (para el botón “Generar” del header)
-        Route::get('facturas/crear',     fn () => view('wip', ['titulo' => 'Nueva Factura']))->name('facturas.create');
         Route::get('complementos/crear', fn () => view('wip', ['titulo' => 'Nuevo Complemento']))->name('complementos.create');
     });
 
