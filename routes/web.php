@@ -40,6 +40,8 @@ Route::middleware(['web','auth'])->group(function () {
 
     // APIs para la UI
     Route::get('/api/series/next',  [FacturaUiController::class, 'nextFolio'])->name('api.series.next');
+    // Alias solicitado: /facturas/next-folio?tipo=I|E|P|N|T
+    Route::get('/facturas/next-folio', [FacturaUiController::class, 'nextFolio'])->name('facturas.next-folio');
     Route::get('/api/productos/buscar', [FacturaUiController::class, 'buscarProductos'])->name('api.productos.buscar');
     Route::post('/facturacion/facturas/preview', [FacturaUiController::class, 'preview'])->name('facturas.preview');
     Route::post('/facturacion/facturas/guardar', [FacturaUiController::class, 'store'])->name('facturas.store'); // (placeholder)
