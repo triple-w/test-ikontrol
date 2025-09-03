@@ -59,7 +59,7 @@ class FacturaUiController extends Controller
     // Serie/Folio automáticos por tipo (I,E,P,N)
     public function nextFolio(Request $request)
     {
-        $request->validate(['tipo' => 'required|in:I,E,P,N,T']);
+        $request->validate(['tipo' => 'required|in:I,E,P,N']);
         $rfcId = optional(Auth::user()->rfcs->firstWhere('rfc', session('rfc_seleccionado')))->id;
 
         $defSerie = [
