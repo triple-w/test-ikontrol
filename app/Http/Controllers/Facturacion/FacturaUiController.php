@@ -56,43 +56,59 @@ class FacturaUiController extends Controller
         ]);
     }
 
-    // Serie/Folio automáticos por tipo (I,E,P,N)
     public function nextFolio(Request $request)
     {
-        $request->validate(['tipo' => 'required|in:I,E,P,N']);
-        $rfcId = optional(Auth::user()->rfcs->firstWhere('rfc', session('rfc_seleccionado')))->id;
+        $tipo = $request->query('tipo', 'I'); // I=Ingreso, E=Egreso, P=Pago, T=Traslado
+        $rfcUsuarioId = (int) session('rfc_usuario_id'); // RFC ACTIVO
 
-        $defSerie = [
-            'I' => 'F',   // Factura ingreso
-            'E' => 'NC',  // Nota de crédito
-            'P' => 'CP',  // Complemento de pago
-            'N' => 'NOM', // Nómina
-        ][$request->tipo];
+        // Folios: asumo columnas: rfc_usuario_id, tipo_comprobante (I/E/P/T), serie, ultimo_folio
+        $folio = \DB::table('folios')
+            ->where('rfc_usuario_id', $rfcUsuarioId)
+            ->where('tipo_comprobante', $tipo)
+            ->orderBy('id')
+            ->first();
 
-        $cfg = SeriesFolio::firstOrCreate(
-            ['rfc_id' => $rfcId, 'tipo_comprobante' => $request->tipo],
-            ['serie' => $defSerie, 'ultimo_folio' => 0]
-        );
+        if (!$folio) {
+            return response()->json([
+                'serie' => null,
+                'folio' => null,
+            ]);
+        }
 
         return response()->json([
-            'serie' => $cfg->serie,
-            'folio' => $cfg->ultimo_folio + 1,
+            'serie' => $folio->serie,
+            'folio' => (int) $folio->ultimo_folio + 1,
         ]);
     }
 
     // Autocompletar productos
     public function buscarProductos(Request $request)
     {
-        $q = trim($request->get('q',''));
-        if ($q === '') return response()->json([]);
+        $q = trim((string) $request->query('q', ''));
 
-        $prods = Producto::where('descripcion','like',"%{$q}%")
-            ->orderBy('descripcion')->limit(20)
-            ->get(['id','descripcion','precio','clave_prod_serv_id','clave_unidad_id','unidad']);
+        $items = \DB::table('productos')
+            ->select([
+                'id',
+                'descripcion',
+                'precio',
+                'unidad', // texto (p.e. "Pieza")
+                'clave_prod_serv_id', // <- tú nos dijiste que ahora terminan en _id
+                'clave_unidad_id',    // <- idem
+                'objeto_imp',         // "01"=No objeto, "02"=Sí objeto
+            ])
+            ->when($q !== '', function ($qq) use ($q) {
+                $qq->where(function ($w) use ($q) {
+                    $w->where('descripcion', 'like', "%{$q}%")
+                    ->orWhere('clave_prod_serv_id', 'like', "%{$q}%")
+                    ->orWhere('clave_unidad_id', 'like', "%{$q}%");
+                });
+            })
+            ->orderBy('descripcion', 'asc')
+            ->limit(20)
+            ->get();
 
-        return response()->json($prods);
+        return response()->json($items);
     }
-
     // Vista previa (HTML simple por ahora)
     public function preview(Request $request)
     {
