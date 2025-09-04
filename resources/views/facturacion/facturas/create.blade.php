@@ -1,447 +1,648 @@
 @extends('layouts.app')
 
-@section('title','Nueva Factura')
+@section('title', 'Nueva Factura')
 
 @section('content')
-<div class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
+@php
+    // Serializamos clientes para Alpine
+    $clientesJson = collect($clientes)->map(function ($c) {
+        return [
+            'id' => $c->id,
+            'rfc' => $c->rfc,
+            'razon_social' => $c->razon_social,
+            'calle' => $c->calle,
+            'no_ext' => $c->no_ext,
+            'no_int' => $c->no_int,
+            'colonia' => $c->colonia,
+            'localidad' => $c->localidad,
+            'estado' => $c->estado,
+            'codigo_postal' => $c->codigo_postal,
+            'pais' => $c->pais,
+            'email' => $c->email,
+        ];
+    })->values()->toJson();
+@endphp
 
-  {{-- Encabezado + RFC activo --}}
-  <div class="flex items-start justify-between mb-6">
-    <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Nueva Factura</h1>
-    <div class="flex items-center gap-2">
-      <span class="text-xs uppercase text-gray-400 dark:text-gray-500">RFC activo</span>
-      <div class="px-2 py-1 rounded bg-violet-500/10 text-violet-600 dark:text-violet-400 text-sm">
-        {{ $rfcActivo ?? '—' }}
-      </div>
-    </div>
-  </div>
-
-  @php
-    // Fallbacks desde el servidor:
-    $rfcUsuarioId = $rfcUsuarioId ?? (session('rfc_usuario_id') ?? session('rfc_activo_id') ?? 0);
-
-    // serializa clientes con los campos que pediste
-    $clientesJson = ($clientes ?? collect())->map(function ($c) {
-      return [
-        'id'            => $c->id,
-        'rfc'           => $c->rfc,
-        'razon_social'  => $c->razon_social,
-        'calle'         => $c->calle,
-        'no_ext'        => $c->no_ext,
-        'no_int'        => $c->no_int,
-        'colonia'       => $c->colonia,
-        'localidad'     => $c->localidad,
-        'estado'        => $c->estado,
-        'codigo_postal' => $c->codigo_postal,
-        'pais'          => $c->pais,
-        'email'         => $c->email,
-      ];
-    })->values()->toJson(JSON_UNESCAPED_UNICODE);
-
-    // Ventana SAT: 72h hacia atrás, máximo "ahora"
-    $minFecha = $minFecha ?? now()->copy()->subHours(72)->format('Y-m-d\TH:i');
-    $maxFecha = $maxFecha ?? now()->format('Y-m-d\TH:i');
-  @endphp
-
-  <div
-    x-data='facturaForm({
-      rfcUsuarioId: {{ (int) $rfcUsuarioId }},
-      clientes: {!! $clientesJson !!},
-      minFecha: "{{ $minFecha }}",
-      maxFecha: "{{ $maxFecha }}",
-      apiSeriesNext: "{{ url('/api/series/next') }}",
-      apiProductosBuscar: "{{ url('/api/productos/buscar') }}",
-      routeClienteUpdateBase: "{{ url('/catalogos/clientes') }}",
-      csrf: "{{ csrf_token() }}"
-    })'
-    class="space-y-6"
-  >
-    {{-- DATOS DEL COMPROBANTE --}}
-    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Datos del comprobante</h2>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {{-- Tipo comprobante --}}
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de comprobante</label>
-          <select x-model="form.tipo_comprobante" @change="onTipoComprobanteChange" class="form-select w-full">
-            <option value="I">Ingreso (Factura/Honorarios/Arrendamiento)</option>
-            <option value="E">Egreso (Nota de crédito)</option>
-            <option value="T">Traslado</option>
-            <option value="N">Nómina</option>
-            <option value="P">Pago</option>
-          </select>
+<div
+    x-data="facturaForm({
+        rfcUsuarioId: {{ (int) $rfcUsuarioId }},
+        clientes: {!! $clientesJson !!},
+        minFecha: '{{ $minFecha }}',
+        maxFecha: '{{ $maxFecha }}',
+        defaultSerie: '{{ $defaultSerie }}',
+        defaultFolio: '{{ $defaultFolio }}',
+        apiSeriesNext: '{{ url('/api/series/next') }}',
+        apiProductosBuscar: '{{ url('/api/productos/buscar') }}',
+        routeClienteUpdateBase: '{{ url('/catalogos/clientes') }}', // PUT /{id}
+        csrf: '{{ csrf_token() }}'
+    })"
+    class="px-4 sm:px-6 lg:px-8 py-8 space-y-6"
+>
+    {{-- Título + RFC activo (arriba derecha) --}}
+    <div class="flex items-start justify-between">
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Nueva Factura</h1>
+        <div class="text-right">
+            <div class="text-xs uppercase text-gray-400 dark:text-gray-500">RFC activo</div>
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200" x-text="encabezado.emisor_rfc"></div>
         </div>
-
-        {{-- Serie (solo lectura, autollenada) --}}
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Serie</label>
-          <input type="text" x-model="form.serie" class="form-input w-full" readonly>
-        </div>
-
-        {{-- Folio (solo lectura, autollenado) --}}
-        <div>
-          <div class="flex items-center justify-between">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Folio</label>
-            <button type="button" class="text-xs text-violet-600 hover:text-violet-700" @click="pedirSiguienteFolio">Actualizar</button>
-          </div>
-          <input type="text" x-model="form.folio" class="form-input w-full" readonly>
-        </div>
-
-        {{-- Fecha (clamp 72h -> ahora) --}}
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha y hora</label>
-          <input type="datetime-local" class="form-input w-full" :min="minFecha" :max="maxFecha" x-model="form.fecha" @change="clampFecha">
-          <p class="text-xs text-gray-500 mt-1">La fecha debe estar dentro de las últimas 72 horas.</p>
-        </div>
-
-        {{-- Método de pago --}}
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Método de pago</label>
-          <select x-model="form.metodo_pago" class="form-select w-full">
-            <option value="PUE">PUE</option>
-            <option value="PPD">PPD</option>
-          </select>
-        </div>
-
-        {{-- Forma de pago (select) --}}
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Forma de pago</label>
-          <select x-model="form.forma_pago" class="form-select w-full">
-            <option value="01">01 - Efectivo</option>
-            <option value="02">02 - Cheque</option>
-            <option value="03">03 - Transferencia</option>
-            <option value="04">04 - Tarjeta de crédito</option>
-            <option value="28">28 - Tarjeta de débito</option>
-            <option value="99">99 - Por definir</option>
-          </select>
-        </div>
-
-        {{-- Comentarios PDF (textarea) --}}
-        <div class="md:col-span-3">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Comentarios en PDF</label>
-          <textarea x-model="form.comentarios_pdf" rows="3" class="form-textarea w-full" placeholder="Notas visibles en el PDF"></textarea>
-        </div>
-      </div>
     </div>
 
-    {{-- CLIENTE --}}
-    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Cliente</h2>
-        <div class="flex items-center gap-2">
-          <div class="w-64">
-            <select x-model.number="form.cliente_id" @change="onClienteChange" class="form-select w-full">
-              <option value="">— Selecciona —</option>
-              <template x-for="c in clientes" :key="c.id">
-                <option :value="c.id" x-text="`${c.razon_social} — ${c.rfc}`"></option>
-              </template>
-            </select>
-          </div>
-          <button type="button" class="btn-sm bg-violet-500 hover:bg-violet-600 text-white" :disabled="!form.cliente_id" @click="$dispatch('open-modal','modalEditarCliente')">Actualizar</button>
-        </div>
-      </div>
-
-      {{-- Labels limpios (sin card dentro de card) --}}
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-1 gap-x-6 text-sm">
-        <div><span class="text-gray-400">Razón social:</span> <span class="font-medium" x-text="clienteSel.razon_social || '—'"></span></div>
-        <div><span class="text-gray-400">RFC:</span> <span class="font-medium" x-text="clienteSel.rfc || '—'"></span></div>
-        <div><span class="text-gray-400">Correo:</span> <span class="font-medium" x-text="clienteSel.email || '—'"></span></div>
-        <div><span class="text-gray-400">Calle:</span> <span class="font-medium" x-text="clienteSel.calle || '—'"></span></div>
-        <div><span class="text-gray-400">No. ext:</span> <span class="font-medium" x-text="clienteSel.no_ext || '—'"></span></div>
-        <div><span class="text-gray-400">No. int:</span> <span class="font-medium" x-text="clienteSel.no_int || '—'"></span></div>
-        <div><span class="text-gray-400">Colonia:</span> <span class="font-medium" x-text="clienteSel.colonia || '—'"></span></div>
-        <div><span class="text-gray-400">Localidad:</span> <span class="font-medium" x-text="clienteSel.localidad || '—'"></span></div>
-        <div><span class="text-gray-400">Estado:</span> <span class="font-medium" x-text="clienteSel.estado || '—'"></span></div>
-        <div><span class="text-gray-400">País:</span> <span class="font-medium" x-text="clienteSel.pais || '—'"></span></div>
-        <div><span class="text-gray-400">C.P.:</span> <span class="font-medium" x-text="clienteSel.codigo_postal || '—'"></span></div>
-      </div>
-    </div>
-
-    {{-- CONCEPTOS --}}
-    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Conceptos</h2>
-        <button type="button" class="btn-sm bg-gray-900 dark:bg-white dark:text-gray-900 text-white hover:opacity-90" @click="agregarConcepto">Agregar concepto</button>
-      </div>
-
-      <div class="overflow-x-auto">
-        <table class="table-auto w-full text-sm">
-          <thead class="text-xs uppercase text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700/60">
-            <tr>
-              <th class="px-2 py-2 text-left">Buscar</th>
-              <th class="px-2 py-2 text-left">Descripción</th>
-              <th class="px-2 py-2 text-left">Clave ProdServ</th>
-              <th class="px-2 py-2 text-left">Clave Unidad</th>
-              <th class="px-2 py-2 text-left">Unidad</th>
-              <th class="px-2 py-2 text-right">Cantidad</th>
-              <th class="px-2 py-2 text-right">Precio</th>
-              <th class="px-2 py-2 text-right">Desc.</th>
-              <th class="px-2 py-2 text-right">Impuestos</th>
-              <th class="px-2 py-2 text-right">Importe</th>
-              <th class="px-2 py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <template x-for="(row, idx) in form.conceptos" :key="row.uid">
-              <tr class="border-b border-gray-100 dark:border-gray-700/40 align-top">
-                {{-- Buscar (autocompletar) --}}
-                <td class="px-2 py-2 w-56 relative">
-                  <input type="text" class="form-input w-full" placeholder="Código o texto"
-                         x-model.debounce.400ms="row.query" @input="buscarProducto(idx)">
-                  <template x-if="row.suggestions && row.suggestions.length">
-                    <div class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow">
-                      <ul class="max-h-48 overflow-auto">
-                        <template x-for="(s, i) in row.suggestions" :key="i">
-                          <li>
-                            <button type="button" class="w-full text-left px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                    @click="aplicarSugerencia(idx, s)">
-                              <div class="text-xs font-medium" x-text="s.descripcion"></div>
-                              <div class="text-[10px] text-gray-500" x-text="`ProdServ: ${s.clave_prod_serv} · ClaveUnidad: ${s.clave_unidad}`"></div>
-                            </button>
-                          </li>
-                        </template>
-                      </ul>
-                    </div>
-                  </template>
-                </td>
-
-                {{-- Descripción --}}
-                <td class="px-2 py-2 w-[28rem]">
-                  <input type="text" class="form-input w-full" x-model="row.descripcion" placeholder="Descripción">
-                </td>
-
-                {{-- Claves compactas --}}
-                <td class="px-2 py-2 w-28">
-                  <input type="text" class="form-input w-full text-center" x-model="row.clave_prod_serv" maxlength="8">
-                </td>
-                <td class="px-2 py-2 w-24">
-                  <input type="text" class="form-input w-full text-center" x-model="row.clave_unidad" maxlength="4">
-                </td>
-                <td class="px-2 py-2 w-24">
-                  <input type="text" class="form-input w-full text-center" x-model="row.unidad" maxlength="10">
-                </td>
-
-                {{-- Números --}}
-                <td class="px-2 py-2 w-24">
-                  <input type="number" step="0.001" class="form-input w-full text-right" x-model.number="row.cantidad" @input="recalcularTotales">
-                </td>
-                <td class="px-2 py-2 w-28">
-                  <input type="number" step="0.01" class="form-input w-full text-right" x-model.number="row.precio" @input="recalcularTotales">
-                </td>
-                <td class="px-2 py-2 w-24">
-                  <input type="number" step="0.01" class="form-input w-full text-right" x-model.number="row.descuento" @input="recalcularTotales">
-                </td>
-
-                {{-- Impuestos (en esta iteración, botón placeholder) --}}
-                <td class="px-2 py-2 w-32 text-right">
-                  <button type="button" class="btn-xs bg-violet-500 hover:bg-violet-600 text-white"
-                          @click="$dispatch('open-impuestos', { idx })">
-                    Editar
-                  </button>
-                </td>
-
-                {{-- Importe --}}
-                <td class="px-2 py-2 w-28 text-right" x-text="money(calcImporte(row))"></td>
-
-                {{-- Quitar --}}
-                <td class="px-2 py-2 w-10 text-right">
-                  <button type="button" class="text-red-500 hover:text-red-600" @click="eliminarConcepto(idx)">
-                    &times;
-                  </button>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
-
-      {{-- Totales --}}
-      <div class="flex justify-end mt-4">
-        <div class="w-full max-w-sm space-y-1 text-sm">
-          <div class="flex justify-between"><span class="text-gray-500">Subtotal</span><span x-text="money(totales.subtotal)"></span></div>
-          <div class="flex justify-between"><span class="text-gray-500">Descuento</span><span x-text="money(totales.descuento)"></span></div>
-          <div class="flex justify-between"><span class="text-gray-500">Impuestos</span><span x-text="money(totales.impuestos)"></span></div>
-          <div class="flex justify-between font-semibold text-gray-800 dark:text-gray-100"><span>Total</span><span x-text="money(totales.total)"></span></div>
-        </div>
-      </div>
-    </div>
-
-    {{-- DOCUMENTOS RELACIONADOS --}}
-    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Documentos relacionados</h2>
-        <button type="button" class="btn-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:opacity-90" @click="agregarRelacionado">Agregar</button>
-      </div>
-
-      <div class="space-y-2">
-        <template x-for="(rel, i) in form.relacionados" :key="rel.uid">
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+    {{-- Card: Datos del comprobante --}}
+    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4 sm:p-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label class="text-xs text-gray-500">Tipo relación</label>
-              <input type="text" class="form-input w-full" x-model="rel.tipo_relacion" placeholder="p.ej. 01, 04">
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Tipo de comprobante</label>
+                <select class="form-select w-full" x-model="encabezado.tipo" @change="cargarSerieFolio()">
+                    <option value="I">Ingreso</option>
+                    <option value="E">Egreso (Nota de crédito)</option>
+                </select>
             </div>
-            <div class="md:col-span-2">
-              <label class="text-xs text-gray-500">UUID</label>
-              <input type="text" class="form-input w-full" x-model="rel.uuid" placeholder="UUID a relacionar">
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Serie</label>
+                <input type="text" class="form-input w-full" x-model="encabezado.serie" readonly>
             </div>
-            <div class="flex items-end justify-end">
-              <button type="button" class="btn-xs text-red-500 hover:text-red-600" @click="eliminarRelacionado(i)">Eliminar</button>
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Folio</label>
+                <input type="text" class="form-input w-full" x-model="encabezado.folio" readonly>
             </div>
-          </div>
-        </template>
-      </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Fecha</label>
+                <input type="datetime-local" class="form-input w-full" x-model="encabezado.fecha" :min="minFecha" :max="maxFecha">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Moneda</label>
+                <select class="form-select w-full" x-model="encabezado.moneda">
+                    <option value="MXN">MXN</option>
+                    <option value="USD">USD</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Método de Pago</label>
+                <select class="form-select w-full" x-model="encabezado.metodo_pago">
+                    <option value="PUE">PUE</option>
+                    <option value="PPD">PPD</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Forma de Pago</label>
+                <select class="form-select w-full" x-model="encabezado.forma_pago">
+                    <option value="">—</option>
+                    <option value="01">01 - Efectivo</option>
+                    <option value="02">02 - Cheque</option>
+                    <option value="03">03 - Transferencia</option>
+                    <option value="04">04 - Tarjeta de crédito</option>
+                    <option value="28">28 - Tarjeta de débito</option>
+                </select>
+            </div>
+            <div class="md:col-span-4">
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Comentario (PDF)</label>
+                <textarea class="form-input w-full" rows="2" x-model="encabezado.comentarios_pdf" placeholder="Opcional"></textarea>
+            </div>
+        </div>
     </div>
 
-    {{-- ACCIONES --}}
-    <div class="flex items-center justify-end gap-3">
-      <button type="button" class="btn border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" @click="previewFactura">Visualizar</button>
-      <button type="button" class="btn bg-gray-900 dark:bg-white dark:text-gray-900 text-white hover:opacity-90" @click="guardarBorrador">Guardar (prefactura)</button>
-      <button type="button" class="btn bg-violet-600 hover:bg-violet-700 text-white" @click="timbrarFactura">Timbrar</button>
+    {{-- Card: Cliente --}}
+    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4 sm:p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="w-full md:w-2/3">
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Cliente</label>
+                <select class="form-select w-full" x-model.number="clienteSeleccionadoId" @change="onSelectCliente()">
+                    <option value="">— Selecciona —</option>
+                    <template x-for="c in clientes" :key="c.id">
+                        <option :value="c.id" x-text="`${c.razon_social} — ${c.rfc}`"></option>
+                    </template>
+                </select>
+            </div>
+            <div class="ml-4">
+                <button type="button" @click="abrirDrawerCliente()" class="btn-sm bg-violet-500 hover:bg-violet-600 text-white">
+                    Editar cliente
+                </button>
+            </div>
+        </div>
+
+        {{-- Labels del cliente (sin recuadro extra) --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
+            <div><span class="text-gray-500">RFC:</span> <span class="font-medium" x-text="cliente.rfc || '—'"></span></div>
+            <div><span class="text-gray-500">Razón social:</span> <span class="font-medium" x-text="cliente.razon_social || '—'"></span></div>
+            <div><span class="text-gray-500">CP:</span> <span class="font-medium" x-text="cliente.codigo_postal || '—'"></span></div>
+            <div class="sm:col-span-2"><span class="text-gray-500">Calle y número:</span>
+                <span class="font-medium" x-text="`${cliente.calle ?? ''} ${cliente.no_ext ?? ''} ${cliente.no_int ?? ''}`.trim() || '—'"></span>
+            </div>
+            <div><span class="text-gray-500">Colonia:</span> <span class="font-medium" x-text="cliente.colonia || '—'"></span></div>
+            <div><span class="text-gray-500">Localidad:</span> <span class="font-medium" x-text="cliente.localidad || '—'"></span></div>
+            <div><span class="text-gray-500">Estado:</span> <span class="font-medium" x-text="cliente.estado || '—'"></span></div>
+            <div><span class="text-gray-500">País:</span> <span class="font-medium" x-text="cliente.pais || '—'"></span></div>
+            <div class="sm:col-span-2"><span class="text-gray-500">Email:</span> <span class="font-medium" x-text="cliente.email || '—'"></span></div>
+        </div>
     </div>
 
-  </div>{{-- /x-data --}}
+    {{-- Card: Conceptos --}}
+    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4 sm:p-6 space-y-4">
+        <div class="flex items-center justify-between">
+            <div class="w-full md:w-2/3">
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Buscar y agregar producto</label>
+                <div class="relative">
+                    <input type="text" class="form-input w-full" placeholder="Escribe para buscar…" x-model="buscadorProducto"
+                           @input.debounce.300ms="buscarProducto()">
+                    <div class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow"
+                         x-show="resultadosProductos.length > 0" @click.outside="resultadosProductos=[]" x-cloak>
+                        <ul class="max-h-64 overflow-auto">
+                            <template x-for="p in resultadosProductos" :key="p.id">
+                                <li>
+                                    <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                                            @click="agregarProductoDesdeBusqueda(p)">
+                                        <div class="text-sm font-medium" x-text="p.descripcion"></div>
+                                        <div class="text-xs text-gray-500">
+                                            <span x-text="`$${Number(p.precio).toFixed(2)}`"></span> ·
+                                            <span x-text="`Clave ProdServ: ${p.clave_prod_serv_id ?? '—'} | Unidad: ${p.unidad ?? '—'}`"></span>
+                                        </div>
+                                    </button>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="ml-4">
+                <button type="button" class="btn-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
+                        @click="agregarConceptoManual()">
+                    Agregar concepto vacío
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="table-auto w-full text-sm">
+                <thead class="text-xs text-gray-500 dark:text-gray-400">
+                    <tr>
+                        <th class="px-2 py-2 text-left">Descripción</th>
+                        <th class="px-2 py-2">Cant.</th>
+                        <th class="px-2 py-2">Precio</th>
+                        <th class="px-2 py-2">Clave ProdServ</th>
+                        <th class="px-2 py-2">Clave Unidad</th>
+                        <th class="px-2 py-2">Unidad</th>
+                        <th class="px-2 py-2">Impuestos</th>
+                        <th class="px-2 py-2">Importe</th>
+                        <th class="px-2 py-2"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="(c, idx) in conceptos" :key="c.__key">
+                        <tr class="border-t border-gray-200 dark:border-gray-700/60">
+                            <td class="px-2 py-2">
+                                <input type="text" class="form-input w-full" x-model="c.descripcion" placeholder="Descripción">
+                            </td>
+                            <td class="px-2 py-2">
+                                <input type="number" step="0.001" class="form-input w-24 text-right" x-model.number="c.cantidad" @input="recalcular()">
+                            </td>
+                            <td class="px-2 py-2">
+                                <input type="number" step="0.01" class="form-input w-28 text-right" x-model.number="c.precio" @input="recalcular()">
+                            </td>
+                            <td class="px-2 py-2">
+                                <input type="text" class="form-input w-36" x-model="c.clave_prod_serv_id" placeholder="Clave SAT">
+                            </td>
+                            <td class="px-2 py-2">
+                                <input type="text" class="form-input w-28" x-model="c.clave_unidad_id" placeholder="Clave">
+                            </td>
+                            <td class="px-2 py-2">
+                                <input type="text" class="form-input w-24" x-model="c.unidad" placeholder="Unidad">
+                            </td>
+                            <td class="px-2 py-2">
+                                <button type="button" class="btn-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
+                                        @click="abrirImpuestos(idx)">
+                                    Editar
+                                </button>
+                            </td>
+                            <td class="px-2 py-2 text-right">
+                                <span x-text="formatoMoneda(c.cantidad * c.precio)"></span>
+                            </td>
+                            <td class="px-2 py-2 text-right">
+                                <button type="button" class="text-red-500 hover:text-red-600" @click="eliminarConcepto(idx)">Eliminar</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        {{-- Totales simples (sin impuestos locales aún) --}}
+        <div class="flex justify-end">
+            <div class="text-right space-y-1">
+                <div><span class="text-gray-500">Subtotal: </span><span class="font-semibold" x-text="formatoMoneda(totales.subtotal)"></span></div>
+                <div><span class="text-gray-500">Impuestos: </span><span class="font-semibold" x-text="formatoMoneda(totales.impuestos)"></span></div>
+                <div class="text-lg"><span class="text-gray-500">Total: </span><span class="font-bold" x-text="formatoMoneda(totales.total)"></span></div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Card: Documentos relacionados --}}
+    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4 sm:p-6">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold text-gray-800 dark:text-gray-100">Documentos relacionados</h3>
+            <button type="button" class="btn-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
+                    @click="agregarRelacion()">Agregar</button>
+        </div>
+        <div class="space-y-2">
+            <template x-for="(r, i) in relaciones" :key="r.__key">
+                <div class="grid grid-cols-1 md:grid-cols-6 gap-2">
+                    <div class="md:col-span-2">
+                        <input class="form-input w-full" placeholder="UUID" x-model="r.uuid">
+                    </div>
+                    <div>
+                        <select class="form-select w-full" x-model="r.tipo_relacion">
+                            <option value="">— Tipo —</option>
+                            <option value="01">01 - Nota de crédito</option>
+                            <option value="04">04 - Sustitución</option>
+                            <option value="07">07 - CFDI por aplicación de anticipo</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-2">
+                        <input class="form-input w-full" placeholder="Folio interno (opcional)" x-model="r.folio_ref">
+                    </div>
+                    <div class="text-right">
+                        <button type="button" class="text-red-500 hover:text-red-600" @click="eliminarRelacion(i)">Eliminar</button>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    {{-- Acciones --}}
+    <div class="flex items-center justify-end gap-2">
+        <a href="{{ route('facturas.index') }}" class="btn border border-gray-300 dark:border-gray-600">Cancelar</a>
+        <button type="button" class="btn bg-violet-500 hover:bg-violet-600 text-white" @click="previsualizar()">
+            Previsualizar
+        </button>
+    </div>
+
+    {{-- Drawer lateral: Editar Cliente --}}
+    <div class="fixed inset-0 z-50" x-show="drawerCliente" x-cloak>
+        <div class="absolute inset-0 bg-gray-900/40" @click="drawerCliente=false"></div>
+        <div class="absolute top-0 right-0 h-full w-full sm:w-[420px] bg-white dark:bg-gray-800 shadow-xl p-4 sm:p-6 overflow-y-auto"
+             x-trap.noscroll.inert="drawerCliente">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Editar cliente</h3>
+                <button class="text-gray-400 hover:text-gray-600" @click="drawerCliente=false">&times;</button>
+            </div>
+            <template x-if="clienteSeleccionadoId">
+                <form @submit.prevent="guardarCliente()">
+                    <div class="grid grid-cols-1 gap-3">
+                        <div>
+                            <label class="text-xs text-gray-500">Razón social</label>
+                            <input class="form-input w-full" x-model="clienteEdit.razon_social">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500">RFC</label>
+                            <input class="form-input w-full" x-model="clienteEdit.rfc">
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label class="text-xs text-gray-500">Calle</label>
+                                <input class="form-input w-full" x-model="clienteEdit.calle">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500">No. ext</label>
+                                <input class="form-input w-full" x-model="clienteEdit.no_ext">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500">No. int</label>
+                                <input class="form-input w-full" x-model="clienteEdit.no_int">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-xs text-gray-500">Colonia</label>
+                                <input class="form-input w-full" x-model="clienteEdit.colonia">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500">Localidad</label>
+                                <input class="form-input w-full" x-model="clienteEdit.localidad">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label class="text-xs text-gray-500">Estado</label>
+                                <input class="form-input w-full" x-model="clienteEdit.estado">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500">CP</label>
+                                <input class="form-input w-full" x-model="clienteEdit.codigo_postal">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500">País</label>
+                                <input class="form-input w-full" x-model="clienteEdit.pais">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500">Email</label>
+                            <input class="form-input w-full" x-model="clienteEdit.email">
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-2 mt-4">
+                        <button type="button" class="btn" @click="drawerCliente=false">Cerrar</button>
+                        <button type="submit" class="btn bg-violet-500 hover:bg-violet-600 text-white">Guardar</button>
+                    </div>
+                </form>
+            </template>
+            <template x-if="!clienteSeleccionadoId">
+                <div class="text-sm text-gray-500">Selecciona un cliente primero.</div>
+            </template>
+        </div>
+    </div>
+
+    {{-- Drawer lateral: Impuestos por concepto --}}
+    <div class="fixed inset-0 z-50" x-show="drawerImpuestos" x-cloak>
+        <div class="absolute inset-0 bg-gray-900/40" @click="drawerImpuestos=false"></div>
+        <div class="absolute top-0 right-0 h-full w-full sm:w-[420px] bg-white dark:bg-gray-800 shadow-xl p-4 sm:p-6 overflow-y-auto"
+             x-trap.noscroll.inert="drawerImpuestos">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Impuestos del concepto</h3>
+                <button class="text-gray-400 hover:text-gray-600" @click="drawerImpuestos=false">&times;</button>
+            </div>
+
+            <template x-if="indiceImpuestos !== null">
+                <div class="space-y-4">
+                    <div>
+                        <button type="button" class="btn-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
+                                @click="agregarImpuesto()">
+                            Agregar impuesto
+                        </button>
+                    </div>
+                    <template x-for="(imp, i) in conceptos[indiceImpuestos].impuestos" :key="imp.__key">
+                        <div class="border border-gray-200 dark:border-gray-700/60 rounded-lg p-3">
+                            <div class="grid grid-cols-3 gap-2">
+                                <div>
+                                    <label class="text-xs text-gray-500">Tipo</label>
+                                    <select class="form-select w-full" x-model="imp.tipo">
+                                        <option value="Traslado">Traslado</option>
+                                        <option value="Retencion">Retención</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-500">Impuesto</label>
+                                    <select class="form-select w-full" x-model="imp.impuesto">
+                                        <option value="IVA">IVA</option>
+                                        <option value="ISR">ISR</option>
+                                        <option value="IEPS">IEPS</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-500">Tasa</label>
+                                    <select class="form-select w-full" x-model.number="imp.tasa" @change="recalcular()">
+                                        <option :value="0.0">0%</option>
+                                        <option :value="0.08">8%</option>
+                                        <option :value="0.16">16%</option>
+                                        <option :value="0.106667">ISR 10.6667%</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="text-right mt-2">
+                                <button type="button" class="text-red-500 hover:text-red-600" @click="eliminarImpuesto(i)">Eliminar</button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </div>
 </div>
-@endsection
 
-@push('scripts')
+{{-- Alpine factory en línea (no re-registra plugins, sin $persist para evitar el error) --}}
 <script>
-  window.facturaForm = (opts) => ({
-    // ----- estado -----
-    form: {
-      tipo_comprobante: 'I', // default INgreso
-      serie: '',
-      folio: '',
-      fecha: opts.maxFecha, // por defecto "ahora"
-      metodo_pago: 'PUE',
-      forma_pago: '03',     // Transferencia por default
-      comentarios_pdf: '',
-      cliente_id: '',
-      conceptos: [],
-      relacionados: [],
-    },
-    clientes: Array.isArray(opts.clientes) ? opts.clientes : [],
-    clienteSel: {},
-    minFecha: opts.minFecha,
-    maxFecha: opts.maxFecha,
-    totales: { subtotal: 0, descuento: 0, impuestos: 0, total: 0 },
+window.facturaForm = function (opts) {
+    return {
+        // props
+        rfcUsuarioId: opts.rfcUsuarioId,
+        clientes: opts.clientes || [],
+        minFecha: opts.minFecha,
+        maxFecha: opts.maxFecha,
+        apiSeriesNext: opts.apiSeriesNext,
+        apiProductosBuscar: opts.apiProductosBuscar,
+        routeClienteUpdateBase: opts.routeClienteUpdateBase,
+        csrf: opts.csrf,
 
-    // ----- helpers -----
-    money(n){ return new Intl.NumberFormat('es-MX',{style:'currency', currency:'MXN'}).format(Number(n||0)); },
-    uid(){ return (crypto.randomUUID?.() || String(Date.now()+Math.random())); },
+        // UI state
+        drawerCliente: false,
+        drawerImpuestos: false,
+        indiceImpuestos: null,
 
-    // ----- init -----
-    init(){
-      // Serie/Folio para Ingreso como default:
-      this.pedirSiguienteFolio();
-      // al menos una fila de concepto para que veas inputs
-      this.agregarConcepto();
-    },
+        // encabezado
+        encabezado: {
+            tipo: 'I',
+            serie: opts.defaultSerie || '',
+            folio: opts.defaultFolio || '',
+            fecha: opts.maxFecha,
+            moneda: 'MXN',
+            metodo_pago: 'PUE',
+            forma_pago: '',
+            comentarios_pdf: '',
+            emisor_rfc: (document.querySelector('.italic')?.innerText || '') // opcional, si ya lo muestras en header
+        },
 
-    // ----- comprobante -----
-    onTipoComprobanteChange(){ this.pedirSiguienteFolio(); },
-    pedirSiguienteFolio(){
-      const url = `${opts.apiSeriesNext}?tipo=${encodeURIComponent(this.form.tipo_comprobante)}&rfc=${encodeURIComponent(opts.rfcUsuarioId)}`;
-      fetch(url).then(r=>r.json()).then(j=>{
-        this.form.serie = j.serie || '';
-        this.form.folio = j.folio || '';
-      }).catch(()=>{});
-    },
-    clampFecha(){
-      if (!this.form.fecha) { this.form.fecha = this.maxFecha; return; }
-      if (this.form.fecha < this.minFecha) this.form.fecha = this.minFecha;
-      if (this.form.fecha > this.maxFecha) this.form.fecha = this.maxFecha;
-    },
+        // cliente
+        clienteSeleccionadoId: '',
+        cliente: {},
+        clienteEdit: {},
 
-    // ----- cliente -----
-    onClienteChange(){
-      const c = this.clientes.find(x => Number(x.id) === Number(this.form.cliente_id));
-      this.clienteSel = c || {};
-    },
+        // conceptos
+        conceptos: [],
+        buscadorProducto: '',
+        resultadosProductos: [],
 
-    // ----- conceptos -----
-    agregarConcepto(){
-      this.form.conceptos.push({
-        uid: this.uid(),
-        query: '',
-        suggestions: [],
-        descripcion: '',
-        clave_prod_serv: '',
-        clave_unidad: '',
-        unidad: '',
-        cantidad: 1,
-        precio: 0,
-        descuento: 0,
-        impuestos: [], // pendiente UI impuestos
-      });
-      this.recalcularTotales();
-    },
-    eliminarConcepto(i){
-      this.form.conceptos.splice(i,1);
-      this.recalcularTotales();
-    },
-    buscarProducto(idx){
-      const row = this.form.conceptos[idx];
-      if (!row || !row.query || row.query.length < 2) { row.suggestions = []; return; }
-      const url = `${opts.apiProductosBuscar}?q=${encodeURIComponent(row.query)}&rfc=${encodeURIComponent(opts.rfcUsuarioId)}`;
-      fetch(url).then(r=>r.json()).then(list=>{
-        row.suggestions = (list || []).slice(0,8);
-      }).catch(()=>{ row.suggestions = []; });
-    },
-    aplicarSugerencia(idx, s){
-      const row = this.form.conceptos[idx];
-      if (!row) return;
-      row.descripcion     = s.descripcion ?? row.descripcion;
-      row.clave_prod_serv = s.clave_prod_serv ?? row.clave_prod_serv;
-      row.clave_unidad    = s.clave_unidad ?? row.clave_unidad;
-      row.unidad          = s.unidad ?? row.unidad;
-      if (typeof s.precio !== 'undefined') row.precio = Number(s.precio);
-      row.query = '';
-      row.suggestions = [];
-      this.recalcularTotales();
-    },
-    calcImporte(row){
-      const subt = Number(row.cantidad||0) * Number(row.precio||0);
-      const desc = Number(row.descuento||0);
-      return Math.max(0, subt - desc);
-    },
-    recalcularTotales(){
-      let subtotal=0, descuento=0, impuestos=0;
-      for (const r of this.form.conceptos){
-        const sub = Number(r.cantidad||0) * Number(r.precio||0);
-        const des = Number(r.descuento||0);
-        subtotal += sub;
-        descuento += des;
-        // impuestos por ahora 0; cuando agreguemos IU de impuestos por concepto, sumar aquí
-      }
-      const total = subtotal - descuento + impuestos;
-      this.totales = { subtotal, descuento, impuestos, total };
-    },
+        // relaciones
+        relaciones: [],
 
-    // ----- relacionados -----
-    agregarRelacionado(){
-      this.form.relacionados.push({ uid:this.uid(), tipo_relacion:'', uuid:'' });
-    },
-    eliminarRelacionado(i){
-      this.form.relacionados.splice(i,1);
-    },
+        // totales
+        totales: { subtotal: 0, impuestos: 0, total: 0 },
 
-    // ----- acciones -----
-    previewFactura(){
-      // TODO: post a /facturacion/facturas/preview con this.form
-      alert('Previsualización: pendiente de integrar endpoint /preview');
-    },
-    guardarBorrador(){
-      // TODO: post a /facturacion/facturas/guardar con this.form (estatus prefactura)
-      alert('Guardar prefactura: pendiente de integrar endpoint /guardar');
-    },
-    timbrarFactura(){
-      // TODO validaciones -> post al endpoint de timbrado
-      alert('Timbrar: pendiente de integrar lógica de timbrado');
-    },
-  });
+        init() {
+            // set defaults serie/folio a la carga (I)
+            this.cargarSerieFolio();
+        },
 
+        cargarSerieFolio() {
+            fetch(`${this.apiSeriesNext}?tipo=${this.encabezado.tipo}&rfc_usuario_id=${this.rfcUsuarioId}`, { credentials: 'same-origin' })
+                .then(r => r.json())
+                .then(d => {
+                    this.encabezado.serie = d.serie || '';
+                    this.encabezado.folio = d.folio || '';
+                })
+                .catch(() => {});
+        },
+
+        onSelectCliente() {
+            const c = this.clientes.find(x => String(x.id) === String(this.clienteSeleccionadoId));
+            this.cliente = c ? JSON.parse(JSON.stringify(c)) : {};
+            this.clienteEdit = JSON.parse(JSON.stringify(this.cliente));
+        },
+
+        abrirDrawerCliente() {
+            if (!this.clienteSeleccionadoId) return;
+            this.clienteEdit = JSON.parse(JSON.stringify(this.cliente));
+            this.drawerCliente = true;
+        },
+
+        guardarCliente() {
+            if (!this.clienteSeleccionadoId) return;
+
+            fetch(`${this.routeClienteUpdateBase}/${this.clienteSeleccionadoId}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': this.csrf,
+                    'Accept': 'application/json',
+                    'X-HTTP-Method-Override': 'PUT',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(this.clienteEdit),
+            })
+            .then(r => r.ok ? r.json().catch(()=> ({})) : Promise.reject())
+            .then(() => {
+                // Refresca datos locales
+                this.cliente = JSON.parse(JSON.stringify(this.clienteEdit));
+                const idx = this.clientes.findIndex(x => x.id === this.clienteSeleccionadoId);
+                if (idx >= 0) this.clientes[idx] = JSON.parse(JSON.stringify(this.clienteEdit));
+                this.drawerCliente = false;
+            })
+            .catch(() => {
+                alert('No se pudo guardar el cliente (revisa validaciones).');
+            });
+        },
+
+        // Productos
+        buscarProducto() {
+            const q = this.buscadorProducto.trim();
+            if (q.length < 2) { this.resultadosProductos = []; return; }
+            fetch(`${this.apiProductosBuscar}?q=${encodeURIComponent(q)}&rfc_usuario_id=${this.rfcUsuarioId}`, { credentials:'same-origin' })
+                .then(r => r.json())
+                .then(list => { this.resultadosProductos = list || []; })
+                .catch(()=>{ this.resultadosProductos = []; });
+        },
+
+        agregarProductoDesdeBusqueda(p) {
+            this.resultadosProductos = [];
+            this.buscadorProducto = '';
+            this.conceptos.push({
+                __key: crypto.randomUUID(),
+                descripcion: p.descripcion || '',
+                cantidad: 1,
+                precio: parseFloat(p.precio || 0),
+                clave_prod_serv_id: p.clave_prod_serv_id || '',
+                clave_unidad_id: p.clave_unidad_id || '',
+                unidad: p.unidad || '',
+                impuestos: [],
+            });
+            this.recalcular();
+        },
+
+        agregarConceptoManual() {
+            this.conceptos.push({
+                __key: crypto.randomUUID(),
+                descripcion: '',
+                cantidad: 1,
+                precio: 0,
+                clave_prod_serv_id: '',
+                clave_unidad_id: '',
+                unidad: '',
+                impuestos: [],
+            });
+            this.recalcular();
+        },
+
+        eliminarConcepto(i) {
+            this.conceptos.splice(i, 1);
+            this.recalcular();
+        },
+
+        abrirImpuestos(i) {
+            this.indiceImpuestos = i;
+            this.drawerImpuestos = true;
+        },
+
+        agregarImpuesto() {
+            if (this.indiceImpuestos === null) return;
+            this.conceptos[this.indiceImpuestos].impuestos.push({
+                __key: crypto.randomUUID(),
+                tipo: 'Traslado',
+                impuesto: 'IVA',
+                tasa: 0.16,
+            });
+            this.recalcular();
+        },
+
+        eliminarImpuesto(i) {
+            if (this.indiceImpuestos === null) return;
+            this.conceptos[this.indiceImpuestos].impuestos.splice(i,1);
+            this.recalcular();
+        },
+
+        // Relaciones
+        agregarRelacion() {
+            this.relaciones.push({ __key: crypto.randomUUID(), uuid: '', tipo_relacion: '', folio_ref: '' });
+        },
+        eliminarRelacion(i) {
+            this.relaciones.splice(i, 1);
+        },
+
+        // Totales (simple)
+        recalcular() {
+            let subtotal = 0, impuestos = 0;
+
+            this.conceptos.forEach(c => {
+                const base = (Number(c.cantidad) || 0) * (Number(c.precio) || 0);
+                subtotal += base;
+
+                (c.impuestos || []).forEach(imp => {
+                    const t = Number(imp.tasa) || 0;
+                    if (imp.tipo === 'Traslado') impuestos += base * t;
+                    if (imp.tipo === 'Retencion') impuestos -= base * t;
+                });
+            });
+
+            this.totales.subtotal = +subtotal.toFixed(2);
+            this.totales.impuestos = +impuestos.toFixed(2);
+            this.totales.total = +(subtotal + impuestos).toFixed(2);
+        },
+
+        formatoMoneda(n) {
+            const num = Number(n || 0);
+            return num.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+        },
+
+        // Preview
+        previsualizar() {
+            // Validaciones mínimas
+            if (!this.clienteSeleccionadoId) { alert('Selecciona un cliente.'); return; }
+            if (this.conceptos.length === 0) { alert('Agrega al menos un concepto.'); return; }
+            this.recalcular();
+
+            const payload = {
+                encabezado: this.encabezado,
+                cliente: this.cliente,
+                conceptos: this.conceptos,
+                relaciones: this.relaciones,
+                totales: this.totales,
+                _token: this.csrf,
+            };
+
+            // form post a /facturacion/facturas/preview
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '{{ url('/facturacion/facturas/preview') }}';
+
+            for (const [k, v] of Object.entries(payload)) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = k;
+                input.value = typeof v === 'string' ? v : JSON.stringify(v);
+                form.appendChild(input);
+            }
+
+            document.body.appendChild(form);
+            form.submit();
+        },
+    }
+}
 </script>
-@endpush
+@endsection
