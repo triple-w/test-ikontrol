@@ -1,790 +1,447 @@
 @extends('layouts.app')
 
-@section('title', 'Nueva Factura')
+@section('title','Nueva Factura')
 
 @section('content')
-@php
-    // Normaliza datos enviados por el controlador
-    $rfcUsuarioId = (int) ($rfcUsuarioId ?? 0);
+<div class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
 
-    $clientesJson = collect($clientes ?? [])->map(function($c){
-        return [
-            'id'            => (int)$c->id,
-            'rfc'           => (string)$c->rfc,
-            'razon_social'  => (string)$c->razon_social,
-            'calle'         => (string)($c->calle ?? ''),
-            'no_ext'        => (string)($c->no_ext ?? ''),
-            'no_int'        => (string)($c->no_int ?? ''),
-            'colonia'       => (string)($c->colonia ?? ''),
-            'localidad'     => (string)($c->localidad ?? ''),
-            'estado'        => (string)($c->estado ?? ''),
-            'codigo_postal' => (string)($c->codigo_postal ?? ''),
-            'pais'          => (string)($c->pais ?? ''),
-            'email'         => (string)($c->email ?? ''),
-        ];
-    })->values()->toJson();
+  {{-- Encabezado + RFC activo --}}
+  <div class="flex items-start justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Nueva Factura</h1>
+    <div class="flex items-center gap-2">
+      <span class="text-xs uppercase text-gray-400 dark:text-gray-500">RFC activo</span>
+      <div class="px-2 py-1 rounded bg-violet-500/10 text-violet-600 dark:text-violet-400 text-sm">
+        {{ $rfcActivo ?? '—' }}
+      </div>
+    </div>
+  </div>
 
-    $serieDefault = $serieDefault ?? null;
-@endphp
+  @php
+    // Fallbacks desde el servidor:
+    $rfcUsuarioId = $rfcUsuarioId ?? (session('rfc_usuario_id') ?? session('rfc_activo_id') ?? 0);
 
-<div
-    x-data="facturaForm({
-        rfcUsuarioId: {{ $rfcUsuarioId }},
-        clientes: {!! $clientesJson !!},
-        minFecha: '{{ $minFecha }}',
-        maxFecha: '{{ $maxFecha }}',
-        serieDefault: @json($serieDefault),
-        apiSeriesNext: '{{ url('/api/series/next') }}',
-        apiProductosBuscar: '{{ url('/api/productos/buscar') }}',
-        routeClienteUpdateBase: '{{ url('/catalogos/clientes') }}',
-        routePreview: '{{ url('/facturacion/facturas/preview') }}',
-        csrf: '{{ csrf_token() }}'
-    })"
-    class="p-4 space-y-6"  {{-- padding 16 en toda la pantalla --}}
->
-    <!-- Encabezado -->
-    <div class="flex items-start justify-between">
-        <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Nueva Factura</h1>
+    // serializa clientes con los campos que pediste
+    $clientesJson = ($clientes ?? collect())->map(function ($c) {
+      return [
+        'id'            => $c->id,
+        'rfc'           => $c->rfc,
+        'razon_social'  => $c->razon_social,
+        'calle'         => $c->calle,
+        'no_ext'        => $c->no_ext,
+        'no_int'        => $c->no_int,
+        'colonia'       => $c->colonia,
+        'localidad'     => $c->localidad,
+        'estado'        => $c->estado,
+        'codigo_postal' => $c->codigo_postal,
+        'pais'          => $c->pais,
+        'email'         => $c->email,
+      ];
+    })->values()->toJson(JSON_UNESCAPED_UNICODE);
 
-        <!-- Emisor activo (label arriba derecha) -->
-        <div class="text-right">
-            <div class="text-xs uppercase text-gray-400 dark:text-gray-500">RFC activo</div>
-            <div class="text-sm font-medium text-gray-800 dark:text-gray-100" x-text="emisorLabel()"></div>
+    // Ventana SAT: 72h hacia atrás, máximo "ahora"
+    $minFecha = $minFecha ?? now()->copy()->subHours(72)->format('Y-m-d\TH:i');
+    $maxFecha = $maxFecha ?? now()->format('Y-m-d\TH:i');
+  @endphp
+
+  <div
+    x-data='facturaForm({
+      rfcUsuarioId: {{ (int) $rfcUsuarioId }},
+      clientes: {!! $clientesJson !!},
+      minFecha: "{{ $minFecha }}",
+      maxFecha: "{{ $maxFecha }}",
+      apiSeriesNext: "{{ url('/api/series/next') }}",
+      apiProductosBuscar: "{{ url('/api/productos/buscar') }}",
+      routeClienteUpdateBase: "{{ url('/catalogos/clientes') }}",
+      csrf: "{{ csrf_token() }}"
+    })'
+    class="space-y-6"
+  >
+    {{-- DATOS DEL COMPROBANTE --}}
+    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Datos del comprobante</h2>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {{-- Tipo comprobante --}}
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de comprobante</label>
+          <select x-model="form.tipo_comprobante" @change="onTipoComprobanteChange" class="form-select w-full">
+            <option value="I">Ingreso (Factura/Honorarios/Arrendamiento)</option>
+            <option value="E">Egreso (Nota de crédito)</option>
+            <option value="T">Traslado</option>
+            <option value="N">Nómina</option>
+            <option value="P">Pago</option>
+          </select>
         </div>
+
+        {{-- Serie (solo lectura, autollenada) --}}
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Serie</label>
+          <input type="text" x-model="form.serie" class="form-input w-full" readonly>
+        </div>
+
+        {{-- Folio (solo lectura, autollenado) --}}
+        <div>
+          <div class="flex items-center justify-between">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Folio</label>
+            <button type="button" class="text-xs text-violet-600 hover:text-violet-700" @click="pedirSiguienteFolio">Actualizar</button>
+          </div>
+          <input type="text" x-model="form.folio" class="form-input w-full" readonly>
+        </div>
+
+        {{-- Fecha (clamp 72h -> ahora) --}}
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha y hora</label>
+          <input type="datetime-local" class="form-input w-full" :min="minFecha" :max="maxFecha" x-model="form.fecha" @change="clampFecha">
+          <p class="text-xs text-gray-500 mt-1">La fecha debe estar dentro de las últimas 72 horas.</p>
+        </div>
+
+        {{-- Método de pago --}}
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Método de pago</label>
+          <select x-model="form.metodo_pago" class="form-select w-full">
+            <option value="PUE">PUE</option>
+            <option value="PPD">PPD</option>
+          </select>
+        </div>
+
+        {{-- Forma de pago (select) --}}
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Forma de pago</label>
+          <select x-model="form.forma_pago" class="form-select w-full">
+            <option value="01">01 - Efectivo</option>
+            <option value="02">02 - Cheque</option>
+            <option value="03">03 - Transferencia</option>
+            <option value="04">04 - Tarjeta de crédito</option>
+            <option value="28">28 - Tarjeta de débito</option>
+            <option value="99">99 - Por definir</option>
+          </select>
+        </div>
+
+        {{-- Comentarios PDF (textarea) --}}
+        <div class="md:col-span-3">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Comentarios en PDF</label>
+          <textarea x-model="form.comentarios_pdf" rows="3" class="form-textarea w-full" placeholder="Notas visibles en el PDF"></textarea>
+        </div>
+      </div>
     </div>
 
-    <!-- Sección: Datos de la factura -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xs p-4">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <!-- Tipo de comprobante -->
-            <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Tipo de comprobante</label>
-                <select x-model="fact.tipo"
-                        @change="onTipoChange()"
-                        class="form-select w-full">
-                    <option value="I">Ingreso</option>
-                    <option value="E">Egreso</option>
-                    <option value="P">Pago</option>
-                    <option value="N">Nómina</option>
-                </select>
-            </div>
-
-            <!-- Serie -->
-            <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Serie</label>
-                <input type="text" x-model="fact.serie" class="form-input w-full" readonly>
-            </div>
-
-            <!-- Folio -->
-            <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Folio</label>
-                <input type="number" x-model.number="fact.folio" class="form-input w-full" readonly>
-            </div>
-
-            <!-- Fecha (máx ahora, mín -72h) -->
-            <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Fecha</label>
-                <input type="datetime-local" x-model="fact.fecha"
-                       :min="minFecha" :max="maxFecha"
-                       class="form-input w-full">
-            </div>
-
-            <!-- Método de pago -->
-            <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Método de pago</label>
-                <select x-model="fact.metodo_pago" class="form-select w-full">
-                    <option value="PUE">PUE - Pago en una sola exhibición</option>
-                    <option value="PPD">PPD - Pago en parcialidades o diferido</option>
-                </select>
-            </div>
-
-            <!-- Forma de pago (select) -->
-            <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Forma de pago</label>
-                <select x-model="fact.forma_pago" class="form-select w-full">
-                    <option value="01">01 - Efectivo</option>
-                    <option value="02">02 - Cheque nominativo</option>
-                    <option value="03">03 - Transferencia electrónica</option>
-                    <option value="04">04 - Tarjeta de crédito</option>
-                    <option value="28">28 - Tarjeta de débito</option>
-                    <option value="99">99 - Por definir</option>
-                </select>
-            </div>
+    {{-- CLIENTE --}}
+    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Cliente</h2>
+        <div class="flex items-center gap-2">
+          <div class="w-64">
+            <select x-model.number="form.cliente_id" @change="onClienteChange" class="form-select w-full">
+              <option value="">— Selecciona —</option>
+              <template x-for="c in clientes" :key="c.id">
+                <option :value="c.id" x-text="`${c.razon_social} — ${c.rfc}`"></option>
+              </template>
+            </select>
+          </div>
+          <button type="button" class="btn-sm bg-violet-500 hover:bg-violet-600 text-white" :disabled="!form.cliente_id" @click="$dispatch('open-modal','modalEditarCliente')">Actualizar</button>
         </div>
+      </div>
 
-        <!-- Comentarios -->
-        <div class="mt-4">
-            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Comentario (PDF)</label>
-            <textarea x-model="fact.comentario" rows="2" class="form-textarea w-full"></textarea>
-        </div>
+      {{-- Labels limpios (sin card dentro de card) --}}
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-1 gap-x-6 text-sm">
+        <div><span class="text-gray-400">Razón social:</span> <span class="font-medium" x-text="clienteSel.razon_social || '—'"></span></div>
+        <div><span class="text-gray-400">RFC:</span> <span class="font-medium" x-text="clienteSel.rfc || '—'"></span></div>
+        <div><span class="text-gray-400">Correo:</span> <span class="font-medium" x-text="clienteSel.email || '—'"></span></div>
+        <div><span class="text-gray-400">Calle:</span> <span class="font-medium" x-text="clienteSel.calle || '—'"></span></div>
+        <div><span class="text-gray-400">No. ext:</span> <span class="font-medium" x-text="clienteSel.no_ext || '—'"></span></div>
+        <div><span class="text-gray-400">No. int:</span> <span class="font-medium" x-text="clienteSel.no_int || '—'"></span></div>
+        <div><span class="text-gray-400">Colonia:</span> <span class="font-medium" x-text="clienteSel.colonia || '—'"></span></div>
+        <div><span class="text-gray-400">Localidad:</span> <span class="font-medium" x-text="clienteSel.localidad || '—'"></span></div>
+        <div><span class="text-gray-400">Estado:</span> <span class="font-medium" x-text="clienteSel.estado || '—'"></span></div>
+        <div><span class="text-gray-400">País:</span> <span class="font-medium" x-text="clienteSel.pais || '—'"></span></div>
+        <div><span class="text-gray-400">C.P.:</span> <span class="font-medium" x-text="clienteSel.codigo_postal || '—'"></span></div>
+      </div>
     </div>
 
-    <!-- Sección: Cliente -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xs p-4">
-        <div class="flex items-center justify-between mb-3">
-            <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">Cliente</div>
-            <div class="flex items-center gap-2">
-                <div class="w-64">
-                    <select x-model.number="fact.cliente_id" @change="onClienteChange" class="form-select w-full">
-                        <option value="">— Selecciona cliente —</option>
-                        <template x-for="c in clientes" :key="c.id">
-                            <option :value="c.id" x-text="c.razon_social + ' ('+c.rfc+')'"></option>
+    {{-- CONCEPTOS --}}
+    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Conceptos</h2>
+        <button type="button" class="btn-sm bg-gray-900 dark:bg-white dark:text-gray-900 text-white hover:opacity-90" @click="agregarConcepto">Agregar concepto</button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="table-auto w-full text-sm">
+          <thead class="text-xs uppercase text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700/60">
+            <tr>
+              <th class="px-2 py-2 text-left">Buscar</th>
+              <th class="px-2 py-2 text-left">Descripción</th>
+              <th class="px-2 py-2 text-left">Clave ProdServ</th>
+              <th class="px-2 py-2 text-left">Clave Unidad</th>
+              <th class="px-2 py-2 text-left">Unidad</th>
+              <th class="px-2 py-2 text-right">Cantidad</th>
+              <th class="px-2 py-2 text-right">Precio</th>
+              <th class="px-2 py-2 text-right">Desc.</th>
+              <th class="px-2 py-2 text-right">Impuestos</th>
+              <th class="px-2 py-2 text-right">Importe</th>
+              <th class="px-2 py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(row, idx) in form.conceptos" :key="row.uid">
+              <tr class="border-b border-gray-100 dark:border-gray-700/40 align-top">
+                {{-- Buscar (autocompletar) --}}
+                <td class="px-2 py-2 w-56 relative">
+                  <input type="text" class="form-input w-full" placeholder="Código o texto"
+                         x-model.debounce.400ms="row.query" @input="buscarProducto(idx)">
+                  <template x-if="row.suggestions && row.suggestions.length">
+                    <div class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow">
+                      <ul class="max-h-48 overflow-auto">
+                        <template x-for="(s, i) in row.suggestions" :key="i">
+                          <li>
+                            <button type="button" class="w-full text-left px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                    @click="aplicarSugerencia(idx, s)">
+                              <div class="text-xs font-medium" x-text="s.descripcion"></div>
+                              <div class="text-[10px] text-gray-500" x-text="`ProdServ: ${s.clave_prod_serv} · ClaveUnidad: ${s.clave_unidad}`"></div>
+                            </button>
+                          </li>
                         </template>
-                    </select>
-                </div>
-                <button type="button" class="btn-sm bg-violet-500 text-white hover:bg-violet-600"
-                        :disabled="!fact.cliente_id"
-                        @click="openClienteModal()">
-                    Actualizar cliente
-                </button>
-            </div>
-        </div>
-
-        <!-- Datos del cliente como labels, sin recuadro interno -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-                <div class="text-[11px] text-gray-400">RFC</div>
-                <div class="text-sm font-medium text-gray-800 dark:text-gray-100" x-text="clienteSel.rfc || '—'"></div>
-            </div>
-            <div>
-                <div class="text-[11px] text-gray-400">Razón social</div>
-                <div class="text-sm font-medium text-gray-800 dark:text-gray-100" x-text="clienteSel.razon_social || '—'"></div>
-            </div>
-            <div>
-                <div class="text-[11px] text-gray-400">C.P.</div>
-                <div class="text-sm font-medium text-gray-800 dark:text-gray-100" x-text="clienteSel.codigo_postal || '—'"></div>
-            </div>
-            <div class="md:col-span-3">
-                <div class="text-[11px] text-gray-400">Domicilio</div>
-                <div class="text-sm font-medium text-gray-800 dark:text-gray-100"
-                     x-text="domicilioCliente()"></div>
-            </div>
-            <div>
-                <div class="text-[11px] text-gray-400">Email</div>
-                <div class="text-sm font-medium text-gray-800 dark:text-gray-100" x-text="clienteSel.email || '—'"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Sección: Conceptos -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xs p-4">
-        <div class="flex items-center justify-between mb-3">
-            <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">Conceptos</div>
-            <button type="button" class="btn-sm bg-slate-700 text-white hover:bg-slate-800" @click="addConcepto()">Agregar concepto</button>
-        </div>
-
-        <!-- Buscador arriba (no se oculta) -->
-        <div class="relative mb-3">
-            <input type="text" class="form-input w-full" placeholder="Buscar producto (por descripción o clave)"
-                   x-model.debounce.400ms="buscadorTerm"
-                   @input="buscarProductos()">
-            <!-- Resultados en dropdown absoluto -->
-            <div class="absolute left-0 top-full mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow z-50"
-                 x-show="showDropdown"
-                 @click.outside="showDropdown = false"
-                 x-transition>
-                <template x-if="resultados.length === 0">
-                    <div class="p-3 text-xs text-gray-500">Sin resultados…</div>
-                </template>
-                <template x-for="item in resultados" :key="item.id">
-                    <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700"
-                            @click="onPickProducto(item)">
-                        <div class="text-sm font-medium text-gray-800 dark:text-gray-100" x-text="item.descripcion"></div>
-                        <div class="text-[11px] text-gray-500">
-                            <span x-text="'$'+formatMoney(item.precio)"></span>
-                            <span class="mx-1">•</span>
-                            <span x-text="(item.clave_prod_serv_code || '-') + ' / ' + (item.clave_unidad_code || '-')"></span>
-                        </div>
-                    </button>
-                </template>
-            </div>
-        </div>
-
-        <!-- Tabla conceptos -->
-        <div class="overflow-x-auto overflow-y-visible">
-            <table class="table-auto min-w-full">
-                <thead class="text-xs text-gray-500">
-                    <tr>
-                        <th class="px-2 py-2 text-left">Cant.</th>
-                        <th class="px-2 py-2 text-left">Descripción</th>
-                        <th class="px-2 py-2 text-left">Precio</th>
-                        <th class="px-2 py-2 text-left">Cve ProdServ</th>
-                        <th class="px-2 py-2 text-left">Cve Unidad</th>
-                        <th class="px-2 py-2 text-left">Unidad</th>
-                        <th class="px-2 py-2 text-left">Impuestos</th>
-                        <th class="px-2 py-2 text-right">Importe</th>
-                        <th class="px-2 py-2"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <template x-for="(c,idx) in fact.conceptos" :key="idx">
-                        <tr class="align-top">
-                            <td class="px-2 py-2 w-20">
-                                <input type="number" step="0.001" min="0" x-model.number="c.cantidad" @input="recalcular()" class="form-input w-full">
-                            </td>
-                            <td class="px-2 py-2">
-                                <input type="text" x-model="c.descripcion" class="form-input w-full">
-                            </td>
-                            <td class="px-2 py-2 w-28">
-                                <input type="number" step="0.01" min="0" x-model.number="c.valor_unitario" @input="recalcular()" class="form-input w-full">
-                            </td>
-
-                            <!-- Clave ProdServ (buscable) -->
-                            <td class="px-2 py-2 w-36">
-                                <div class="relative">
-                                    <input type="text" x-model="c.clave_prod_serv_code" class="form-input w-full" placeholder="01010101"
-                                           @input.debounce.400ms="buscarClaveProdServ(idx)">
-                                    <div class="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow z-50"
-                                         x-show="c._showCPS"
-                                         @click.outside="c._showCPS=false"
-                                         x-transition>
-                                        <template x-for="opt in c._cpsOpts" :key="opt.id">
-                                            <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                                    @click="pickClaveProdServ(idx, opt)">
-                                                <div class="text-sm font-medium" x-text="opt.code + ' — ' + opt.text"></div>
-                                            </button>
-                                        </template>
-                                    </div>
-                                </div>
-                            </td>
-
-                            <!-- Clave Unidad (buscable) -->
-                            <td class="px-2 py-2 w-36">
-                                <div class="relative">
-                                    <input type="text" x-model="c.clave_unidad_code" class="form-input w-full" placeholder="H87"
-                                           @input.debounce.400ms="buscarClaveUnidad(idx)">
-                                    <div class="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow z-50"
-                                         x-show="c._showCU"
-                                         @click.outside="c._showCU=false"
-                                         x-transition>
-                                        <template x-for="opt in c._cuOpts" :key="opt.id">
-                                            <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                                    @click="pickClaveUnidad(idx, opt)">
-                                                <div class="text-sm font-medium" x-text="opt.code + ' — ' + opt.text"></div>
-                                            </button>
-                                        </template>
-                                    </div>
-                                </div>
-                            </td>
-
-                            <td class="px-2 py-2 w-28">
-                                <input type="text" x-model="c.unidad" class="form-input w-full" placeholder="Pieza">
-                            </td>
-
-                            <!-- Impuestos por concepto -->
-                            <td class="px-2 py-2 w-40">
-                                <div class="space-y-1">
-                                    <template x-for="(imp, j) in c.impuestos" :key="j">
-                                        <div class="flex items-center gap-1">
-                                            <span class="text-[11px] px-1 rounded bg-slate-100 dark:bg-slate-700" x-text="imp.tipo + ' ' + imp.impuesto + ' ' + (imp.tasa*100) + '%'"></span>
-                                            <button type="button" class="text-xs text-red-500 hover:underline" @click="removeImpuesto(idx, j)">Quitar</button>
-                                        </div>
-                                    </template>
-                                    <button type="button" class="btn-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
-                                            @click="openImpuestoModal(idx)">
-                                        + Agregar impuesto
-                                    </button>
-                                </div>
-                            </td>
-
-                            <td class="px-2 py-2 w-28 text-right">
-                                <div class="tabular-nums" x-text="'$'+formatMoney(c.importe)"></div>
-                            </td>
-                            <td class="px-2 py-2 w-8 text-right">
-                                <button type="button" class="text-red-500 hover:text-red-600" @click="removeConcepto(idx)">✕</button>
-                            </td>
-                        </tr>
-                    </template>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Impuestos globales (Locales / Frontera, etc.) -->
-        <div class="mt-4">
-            <div class="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">Impuestos globales (opcional)</div>
-            <div class="flex flex-wrap gap-2">
-                <template x-for="(igl, k) in fact.impuestos_globales" :key="k">
-                    <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 rounded px-2 py-1">
-                        <span class="text-xs" x-text="igl.nombre + ' ' + (igl.tasa*100) + '%'"></span>
-                        <button type="button" class="text-xs text-red-500" @click="removeImpuestoGlobal(k)">Quitar</button>
+                      </ul>
                     </div>
-                </template>
-                <button type="button" class="btn-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
-                        @click="openImpuestoGlobalModal()">
-                    + Agregar impuesto global
-                </button>
-            </div>
-        </div>
-    </div>
+                  </template>
+                </td>
 
-    <!-- Totales + acciones -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xs p-4">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-            <div class="text-sm text-gray-500">
-                <div>SubTotal: <span class="font-medium text-gray-800 dark:text-gray-100" x-text="'$'+formatMoney(totales.subtotal)"></span></div>
-                <div>Impuestos trasladados: <span class="font-medium text-gray-800 dark:text-gray-100" x-text="'$'+formatMoney(totales.trasladados)"></span></div>
-                <div>Impuestos retenidos: <span class="font-medium text-gray-800 dark:text-gray-100" x-text="'$'+formatMoney(totales.retenidos)"></span></div>
-                <div class="text-lg mt-2">Total: <span class="font-semibold text-gray-900 dark:text-gray-50" x-text="'$'+formatMoney(totales.total)"></span></div>
-            </div>
-            <div class="text-right space-x-2">
-                <button type="button" class="btn bg-white border border-gray-300 dark:bg-gray-700 dark:border-gray-600 hover:bg-gray-50"
-                        @click="guardarPrefactura()" disabled>
-                    Guardar como borrador
-                </button>
-                <button type="button" class="btn bg-slate-700 text-white hover:bg-slate-800"
-                        @click="visualizar()">
-                    Visualizar
-                </button>
-                <button type="button" class="btn bg-violet-600 text-white hover:bg-violet-700" disabled>
-                    Timbrar
-                </button>
-            </div>
-        </div>
-    </div>
+                {{-- Descripción --}}
+                <td class="px-2 py-2 w-[28rem]">
+                  <input type="text" class="form-input w-full" x-model="row.descripcion" placeholder="Descripción">
+                </td>
 
-    <!-- Modal lateral: actualizar cliente -->
-    <div class="fixed inset-0 z-50" x-show="clienteModal.open" x-cloak>
-        <div class="absolute inset-0 bg-black/40" @click="closeClienteModal()"></div>
-        <div class="absolute right-0 top-0 h-full w-full sm:w-[480px] bg-white dark:bg-gray-800 shadow-xl p-4 overflow-y-auto"
-             x-trap.noscroll.inert="clienteModal.open"
-             x-transition:enter="transition ease-out duration-200 transform"
-             x-transition:enter-start="translate-x-full opacity-0"
-             x-transition:enter-end="translate-x-0 opacity-100"
-             x-transition:leave="transition ease-in duration-150 transform"
-             x-transition:leave-start="translate-x-0 opacity-100"
-             x-transition:leave-end="translate-x-full opacity-0">
-            <div class="flex items-center justify-between mb-3">
-                <div class="text-lg font-semibold">Actualizar cliente</div>
-                <button class="text-gray-500 hover:text-gray-700" @click="closeClienteModal()">✕</button>
-            </div>
+                {{-- Claves compactas --}}
+                <td class="px-2 py-2 w-28">
+                  <input type="text" class="form-input w-full text-center" x-model="row.clave_prod_serv" maxlength="8">
+                </td>
+                <td class="px-2 py-2 w-24">
+                  <input type="text" class="form-input w-full text-center" x-model="row.clave_unidad" maxlength="4">
+                </td>
+                <td class="px-2 py-2 w-24">
+                  <input type="text" class="form-input w-full text-center" x-model="row.unidad" maxlength="10">
+                </td>
 
-            <template x-if="clienteModal.data">
-                <form :action="routeClienteUpdate(clienteModal.data.id)" method="POST" class="space-y-3">
-                    @csrf
-                    @method('PUT')
+                {{-- Números --}}
+                <td class="px-2 py-2 w-24">
+                  <input type="number" step="0.001" class="form-input w-full text-right" x-model.number="row.cantidad" @input="recalcularTotales">
+                </td>
+                <td class="px-2 py-2 w-28">
+                  <input type="number" step="0.01" class="form-input w-full text-right" x-model.number="row.precio" @input="recalcularTotales">
+                </td>
+                <td class="px-2 py-2 w-24">
+                  <input type="number" step="0.01" class="form-input w-full text-right" x-model.number="row.descuento" @input="recalcularTotales">
+                </td>
 
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="text-xs text-gray-500">RFC</label>
-                            <input type="text" class="form-input w-full" x-model="clienteModal.data.rfc">
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500">Razón social</label>
-                            <input type="text" class="form-input w-full" x-model="clienteModal.data.razon_social">
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500">Calle</label>
-                            <input type="text" class="form-input w-full" x-model="clienteModal.data.calle">
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500">No. Ext</label>
-                            <input type="text" class="form-input w-full" x-model="clienteModal.data.no_ext">
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500">No. Int</label>
-                            <input type="text" class="form-input w-full" x-model="clienteModal.data.no_int">
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500">Colonia</label>
-                            <input type="text" class="form-input w-full" x-model="clienteModal.data.colonia">
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500">Localidad</label>
-                            <input type="text" class="form-input w-full" x-model="clienteModal.data.localidad">
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500">Estado</label>
-                            <input type="text" class="form-input w-full" x-model="clienteModal.data.estado">
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500">C.P.</label>
-                            <input type="text" class="form-input w-full" x-model="clienteModal.data.codigo_postal">
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500">País</label>
-                            <input type="text" class="form-input w-full" x-model="clienteModal.data.pais">
-                        </div>
-                        <div class="col-span-2">
-                            <label class="text-xs text-gray-500">Email</label>
-                            <input type="email" class="form-input w-full" x-model="clienteModal.data.email">
-                        </div>
-                    </div>
+                {{-- Impuestos (en esta iteración, botón placeholder) --}}
+                <td class="px-2 py-2 w-32 text-right">
+                  <button type="button" class="btn-xs bg-violet-500 hover:bg-violet-600 text-white"
+                          @click="$dispatch('open-impuestos', { idx })">
+                    Editar
+                  </button>
+                </td>
 
-                    <div class="pt-2 text-right">
-                        <button type="button" class="btn bg-white border border-gray-300 hover:bg-gray-50" @click="closeClienteModal()">Cancelar</button>
-                        <button type="submit" class="btn bg-violet-600 text-white hover:bg-violet-700">Guardar</button>
-                    </div>
-                </form>
+                {{-- Importe --}}
+                <td class="px-2 py-2 w-28 text-right" x-text="money(calcImporte(row))"></td>
+
+                {{-- Quitar --}}
+                <td class="px-2 py-2 w-10 text-right">
+                  <button type="button" class="text-red-500 hover:text-red-600" @click="eliminarConcepto(idx)">
+                    &times;
+                  </button>
+                </td>
+              </tr>
             </template>
+          </tbody>
+        </table>
+      </div>
+
+      {{-- Totales --}}
+      <div class="flex justify-end mt-4">
+        <div class="w-full max-w-sm space-y-1 text-sm">
+          <div class="flex justify-between"><span class="text-gray-500">Subtotal</span><span x-text="money(totales.subtotal)"></span></div>
+          <div class="flex justify-between"><span class="text-gray-500">Descuento</span><span x-text="money(totales.descuento)"></span></div>
+          <div class="flex justify-between"><span class="text-gray-500">Impuestos</span><span x-text="money(totales.impuestos)"></span></div>
+          <div class="flex justify-between font-semibold text-gray-800 dark:text-gray-100"><span>Total</span><span x-text="money(totales.total)"></span></div>
         </div>
+      </div>
     </div>
 
-    <!-- Modal mini: impuesto por concepto -->
-    <div class="fixed inset-0 z-50" x-show="impModal.open" x-cloak>
-        <div class="absolute inset-0 bg-black/40" @click="impModal.open=false"></div>
-        <div class="absolute left-1/2 top-1/2 w-[360px] -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded shadow p-4">
-            <div class="text-sm font-semibold mb-2">Agregar impuesto</div>
-            <div class="space-y-2">
-                <div>
-                    <label class="text-xs text-gray-500">Tipo</label>
-                    <select class="form-select w-full" x-model="impModal.tipo">
-                        <option value="Traslado">Traslado</option>
-                        <option value="Retención">Retención</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs text-gray-500">Impuesto</label>
-                    <select class="form-select w-full" x-model="impModal.impuesto">
-                        <option value="001">001 - ISR</option>
-                        <option value="002">002 - IVA</option>
-                        <option value="003">003 - IEPS</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs text-gray-500">Tasa (%)</label>
-                    <input type="number" step="0.001" min="0" class="form-input w-full" x-model.number="impModal.tasaPct">
-                </div>
+    {{-- DOCUMENTOS RELACIONADOS --}}
+    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Documentos relacionados</h2>
+        <button type="button" class="btn-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:opacity-90" @click="agregarRelacionado">Agregar</button>
+      </div>
+
+      <div class="space-y-2">
+        <template x-for="(rel, i) in form.relacionados" :key="rel.uid">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+              <label class="text-xs text-gray-500">Tipo relación</label>
+              <input type="text" class="form-input w-full" x-model="rel.tipo_relacion" placeholder="p.ej. 01, 04">
             </div>
-            <div class="mt-3 text-right">
-                <button class="btn bg-white border border-gray-300 hover:bg-gray-50" @click="impModal.open=false">Cancelar</button>
-                <button class="btn bg-violet-600 text-white hover:bg-violet-700" @click="confirmImpuesto()">Agregar</button>
+            <div class="md:col-span-2">
+              <label class="text-xs text-gray-500">UUID</label>
+              <input type="text" class="form-input w-full" x-model="rel.uuid" placeholder="UUID a relacionar">
             </div>
-        </div>
+            <div class="flex items-end justify-end">
+              <button type="button" class="btn-xs text-red-500 hover:text-red-600" @click="eliminarRelacionado(i)">Eliminar</button>
+            </div>
+          </div>
+        </template>
+      </div>
     </div>
 
-    <!-- Modal mini: impuesto global -->
-    <div class="fixed inset-0 z-50" x-show="impGModal.open" x-cloak>
-        <div class="absolute inset-0 bg-black/40" @click="impGModal.open=false"></div>
-        <div class="absolute left-1/2 top-1/2 w-[360px] -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded shadow p-4">
-            <div class="text-sm font-semibold mb-2">Agregar impuesto global</div>
-            <div class="space-y-2">
-                <div>
-                    <label class="text-xs text-gray-500">Nombre</label>
-                    <input type="text" class="form-input w-full" x-model="impGModal.nombre" placeholder="Ej. Imp. cedular local">
-                </div>
-                <div>
-                    <label class="text-xs text-gray-500">Tasa (%)</label>
-                    <input type="number" step="0.001" min="0" class="form-input w-full" x-model.number="impGModal.tasaPct">
-                </div>
-            </div>
-            <div class="mt-3 text-right">
-                <button class="btn bg-white border border-gray-300 hover:bg-gray-50" @click="impGModal.open=false">Cancelar</button>
-                <button class="btn bg-violet-600 text-white hover:bg-violet-700" @click="confirmImpuestoGlobal()">Agregar</button>
-            </div>
-        </div>
+    {{-- ACCIONES --}}
+    <div class="flex items-center justify-end gap-3">
+      <button type="button" class="btn border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" @click="previewFactura">Visualizar</button>
+      <button type="button" class="btn bg-gray-900 dark:bg-white dark:text-gray-900 text-white hover:opacity-90" @click="guardarBorrador">Guardar (prefactura)</button>
+      <button type="button" class="btn bg-violet-600 hover:bg-violet-700 text-white" @click="timbrarFactura">Timbrar</button>
     </div>
 
+  </div>{{-- /x-data --}}
 </div>
-
-{{-- ================== Alpine helpers ================== --}}
-<script>
-window.facturaForm = function initFacturaForm(cfg) {
-    return {
-        // CONFIG
-        rfcUsuarioId: cfg.rfcUsuarioId,
-        clientes: cfg.clientes || [],
-        minFecha: cfg.minFecha,
-        maxFecha: cfg.maxFecha,
-        apiSeriesNext: cfg.apiSeriesNext,
-        apiProductosBuscar: cfg.apiProductosBuscar,
-        routeClienteUpdateBase: cfg.routeClienteUpdateBase,
-        routePreview: cfg.routePreview,
-        csrf: cfg.csrf,
-        serieDefault: cfg.serieDefault || null,
-
-        // STATE
-        fact: {
-            tipo: 'I',
-            serie: '',
-            folio: null,
-            fecha: cfg.maxFecha,    // default ahora
-            metodo_pago: 'PUE',
-            forma_pago: '99',
-            comentario: '',
-            cliente_id: '',
-            conceptos: [],
-            impuestos_globales: [],
-        },
-        clienteSel: {},
-
-        // buscador productos (arriba)
-        buscadorTerm: '',
-        resultados: [],
-        showDropdown: false,
-
-        // modales
-        clienteModal: { open: false, data: null },
-        impModal:     { open: false, idx: null, tipo: 'Traslado', impuesto: '002', tasaPct: 16 },
-        impGModal:    { open: false, nombre: '', tasaPct: 0 },
-
-        totales: { subtotal: 0, trasladados: 0, retenidos: 0, total: 0 },
-
-        // INIT
-        async init() {
-            // Serie/folio por defecto (Ingreso)
-            if (this.serieDefault && this.serieDefault.serie) {
-                this.fact.serie = this.serieDefault.serie;
-                this.fact.folio = this.serieDefault.folio;
-            } else {
-                await this.onTipoChange(); // intenta fetch
-            }
-            this.recalcular();
-        },
-
-        // UI helpers
-        emisorLabel() {
-            // Solo visualizar el RFC activo (lo trae el layout), aquí placeholder
-            return 'RFC seleccionado en el header';
-        },
-        domicilioCliente() {
-            const c = this.clienteSel || {};
-            const p1 = [c.calle, c.no_ext, c.no_int].filter(Boolean).join(' ');
-            const p2 = [c.colonia, c.localidad, c.estado].filter(Boolean).join(', ');
-            return [p1, p2, c.pais].filter(Boolean).join(' · ');
-        },
-        formatMoney(n) {
-            return Number(n || 0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-        },
-
-        // Serie / Folio
-        async onTipoChange() {
-            try {
-                const url = `${this.apiSeriesNext}?tipo=${encodeURIComponent(this.fact.tipo)}`;
-                const r = await fetch(url, {headers:{'X-Requested-With':'XMLHttpRequest'}});
-                const j = await r.json();
-                if (j && j.ok) {
-                    this.fact.serie = j.serie || '';
-                    this.fact.folio = j.folio || null;
-                } else {
-                    this.fact.serie = '';
-                    this.fact.folio = null;
-                    console.warn(j?.message || 'Sin serie/folio configurado');
-                }
-            } catch(e) {
-                console.error(e);
-                this.fact.serie = '';
-                this.fact.folio = null;
-            }
-        },
-
-        // Cliente
-        onClienteChange() {
-            const id = Number(this.fact.cliente_id);
-            this.clienteSel = this.clientes.find(c => c.id === id) || {};
-        },
-        openClienteModal() {
-            if (!this.fact.cliente_id) return;
-            this.clienteModal.data = JSON.parse(JSON.stringify(this.clienteSel));
-            this.clienteModal.open = true;
-        },
-        closeClienteModal() {
-            this.clienteModal.open = false;
-            this.clienteModal.data = null;
-        },
-        routeClienteUpdate(id) {
-            return `${this.routeClienteUpdateBase}/${id}`;
-        },
-
-        // Conceptos
-        addConcepto() {
-            this.fact.conceptos.push({
-                cantidad: 1,
-                descripcion: '',
-                valor_unitario: 0,
-                clave_prod_serv_id: null,
-                clave_unidad_id: null,
-                clave_prod_serv_code: '',
-                clave_unidad_code: '',
-                unidad: '',
-                impuestos: [],
-                importe: 0,
-                // dropdowns internos para claves
-                _showCPS: false, _cpsOpts: [],
-                _showCU: false,  _cuOpts:  [],
-            });
-        },
-        removeConcepto(idx) {
-            this.fact.conceptos.splice(idx,1);
-            this.recalcular();
-        },
-
-        // Buscador productos (arriba)
-        async buscarProductos() {
-            const term = (this.buscadorTerm || '').trim();
-            if (!term) { this.resultados = []; this.showDropdown=false; return; }
-            try {
-                const url = `${this.apiProductosBuscar}?term=${encodeURIComponent(term)}`;
-                const r = await fetch(url, {headers:{'X-Requested-With':'XMLHttpRequest'}});
-                const j = await r.json();
-                this.resultados = Array.isArray(j.items) ? j.items : [];
-                this.showDropdown = true;
-            } catch(e) {
-                console.error(e);
-                this.resultados = [];
-                this.showDropdown = false;
-            }
-        },
-        onPickProducto(item) {
-            this.showDropdown = false;
-            // Rellena en un concepto nuevo
-            const c = {
-                cantidad: 1,
-                descripcion: item.descripcion || '',
-                valor_unitario: Number(item.precio || 0),
-                clave_prod_serv_id: item.clave_prod_serv_id || null,
-                clave_unidad_id: item.clave_unidad_id || null,
-                clave_prod_serv_code: item.clave_prod_serv_code || '',
-                clave_unidad_code: item.clave_unidad_code || '',
-                unidad: item.unidad || '',
-                impuestos: [],
-                importe: 0,
-                _showCPS: false, _cpsOpts: [],
-                _showCU: false,  _cuOpts:  [],
-            };
-            this.fact.conceptos.push(c);
-            this.recalcular();
-            // Limpia el buscador
-            this.buscadorTerm = '';
-            this.resultados = [];
-        },
-
-        // Buscadores de claves SAT (mock local por ahora)
-        async buscarClaveProdServ(idx) {
-            const c = this.fact.conceptos[idx];
-            const term = (c.clave_prod_serv_code || '').trim();
-            if (!term) { c._cpsOpts=[]; c._showCPS=false; return; }
-            // TODO: Cambiar a endpoint real si tienes catálogo SAT
-            // De momento, devolvemos algunas opciones dummy:
-            c._cpsOpts = [
-                {id: 1, code: '01010101', text: 'No existe en el catálogo'},
-                {id: 2, code: '44103104', text: 'Papel térmico para ticket'},
-                {id: 3, code: '43231512', text: 'Servicios de software'}
-            ].filter(o => (o.code.includes(term) || o.text.toLowerCase().includes(term.toLowerCase()))).slice(0,8);
-            c._showCPS = c._cpsOpts.length > 0;
-        },
-        pickClaveProdServ(idx, opt) {
-            const c = this.fact.conceptos[idx];
-            c.clave_prod_serv_id = opt.id; // si luego mapeas a id real
-            c.clave_prod_serv_code = opt.code;
-            c._showCPS = false;
-        },
-        async buscarClaveUnidad(idx) {
-            const c = this.fact.conceptos[idx];
-            const term = (c.clave_unidad_code || '').trim();
-            if (!term) { c._cuOpts=[]; c._showCU=false; return; }
-            // Dummy opciones
-            c._cuOpts = [
-                {id: 1, code: 'H87', text: 'Pieza'},
-                {id: 2, code: 'E48', text: 'Unidad de servicio'},
-                {id: 3, code: 'KGM', text: 'Kilogramo'}
-            ].filter(o => (o.code.includes(term) || o.text.toLowerCase().includes(term.toLowerCase()))).slice(0,8);
-            c._showCU = c._cuOpts.length > 0;
-        },
-        pickClaveUnidad(idx, opt) {
-            const c = this.fact.conceptos[idx];
-            c.clave_unidad_id = opt.id; // si luego mapeas a id real
-            c.clave_unidad_code = opt.code;
-            c.unidad = opt.text;
-            c._showCU = false;
-        },
-
-        // Impuestos por concepto
-        openImpuestoModal(idx) {
-            this.impModal.open = true;
-            this.impModal.idx  = idx;
-            this.impModal.tipo = 'Traslado';
-            this.impModal.impuesto = '002';
-            this.impModal.tasaPct = 16;
-        },
-        confirmImpuesto() {
-            const idx = this.impModal.idx;
-            if (idx === null) return;
-            const tasa = Number(this.impModal.tasaPct || 0)/100;
-            this.fact.conceptos[idx].impuestos.push({
-                tipo: this.impModal.tipo,       // Traslado | Retención
-                impuesto: this.impModal.impuesto, // 001|002|003
-                tasa: tasa
-            });
-            this.impModal.open = false;
-            this.recalcular();
-        },
-        removeImpuesto(idx, j) {
-            this.fact.conceptos[idx].impuestos.splice(j,1);
-            this.recalcular();
-        },
-
-        // Impuestos globales
-        openImpuestoGlobalModal() {
-            this.impGModal.open = true;
-            this.impGModal.nombre = '';
-            this.impGModal.tasaPct = 0;
-        },
-        confirmImpuestoGlobal() {
-            const t = Number(this.impGModal.tasaPct || 0)/100;
-            this.fact.impuestos_globales.push({
-                nombre: this.impGModal.nombre || 'Impuesto local',
-                tasa: t
-            });
-            this.impGModal.open = false;
-            this.recalcular();
-        },
-        removeImpuestoGlobal(k) {
-            this.fact.impuestos_globales.splice(k,1);
-            this.recalcular();
-        },
-
-        // Cálculos
-        recalcular() {
-            let subtotal = 0, tras = 0, ret = 0;
-            this.fact.conceptos.forEach(c => {
-                const impBase = Number(c.cantidad||0) * Number(c.valor_unitario||0);
-                c.importe = impBase;
-                subtotal += impBase;
-
-                (c.impuestos||[]).forEach(imp => {
-                    const m = impBase * Number(imp.tasa||0);
-                    if (imp.tipo === 'Retención') ret += m;
-                    else tras += m;
-                });
-            });
-
-            // Impuestos globales (aplicados al subtotal)
-            (this.fact.impuestos_globales||[]).forEach(igl => {
-                const m = subtotal * Number(igl.tasa||0);
-                // Asumimos trasladados (puedes dividir en otra UI si quieres retenciones globales)
-                tras += m;
-            });
-
-            const total = subtotal + tras - ret;
-            this.totales = { subtotal, trasladados: tras, retenidos: ret, total };
-        },
-
-        // Preview
-        async visualizar() {
-            try {
-                const payload = JSON.stringify(this.fact);
-                const r = await fetch(this.routePreview, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type':'application/x-www-form-urlencoded',
-                        'X-CSRF-TOKEN': this.csrf,
-                        'X-Requested-With':'XMLHttpRequest',
-                    },
-                    body: new URLSearchParams({ data: payload })
-                });
-                const html = await r.text();
-                const win = window.open('', '_blank');
-                win.document.open();
-                win.document.write(html);
-                win.document.close();
-            } catch(e) {
-                console.error(e);
-                alert('No fue posible generar la visualización.');
-            }
-        },
-
-        guardarPrefactura(){ /* listo para implementar */ },
-    }
-}
-</script>
 @endsection
+
+@push('scripts')
+<script>
+  window.facturaForm = (opts) => ({
+    // ----- estado -----
+    form: {
+      tipo_comprobante: 'I', // default INgreso
+      serie: '',
+      folio: '',
+      fecha: opts.maxFecha, // por defecto "ahora"
+      metodo_pago: 'PUE',
+      forma_pago: '03',     // Transferencia por default
+      comentarios_pdf: '',
+      cliente_id: '',
+      conceptos: [],
+      relacionados: [],
+    },
+    clientes: Array.isArray(opts.clientes) ? opts.clientes : [],
+    clienteSel: {},
+    minFecha: opts.minFecha,
+    maxFecha: opts.maxFecha,
+    totales: { subtotal: 0, descuento: 0, impuestos: 0, total: 0 },
+
+    // ----- helpers -----
+    money(n){ return new Intl.NumberFormat('es-MX',{style:'currency', currency:'MXN'}).format(Number(n||0)); },
+    uid(){ return (crypto.randomUUID?.() || String(Date.now()+Math.random())); },
+
+    // ----- init -----
+    init(){
+      // Serie/Folio para Ingreso como default:
+      this.pedirSiguienteFolio();
+      // al menos una fila de concepto para que veas inputs
+      this.agregarConcepto();
+    },
+
+    // ----- comprobante -----
+    onTipoComprobanteChange(){ this.pedirSiguienteFolio(); },
+    pedirSiguienteFolio(){
+      const url = `${opts.apiSeriesNext}?tipo=${encodeURIComponent(this.form.tipo_comprobante)}&rfc=${encodeURIComponent(opts.rfcUsuarioId)}`;
+      fetch(url).then(r=>r.json()).then(j=>{
+        this.form.serie = j.serie || '';
+        this.form.folio = j.folio || '';
+      }).catch(()=>{});
+    },
+    clampFecha(){
+      if (!this.form.fecha) { this.form.fecha = this.maxFecha; return; }
+      if (this.form.fecha < this.minFecha) this.form.fecha = this.minFecha;
+      if (this.form.fecha > this.maxFecha) this.form.fecha = this.maxFecha;
+    },
+
+    // ----- cliente -----
+    onClienteChange(){
+      const c = this.clientes.find(x => Number(x.id) === Number(this.form.cliente_id));
+      this.clienteSel = c || {};
+    },
+
+    // ----- conceptos -----
+    agregarConcepto(){
+      this.form.conceptos.push({
+        uid: this.uid(),
+        query: '',
+        suggestions: [],
+        descripcion: '',
+        clave_prod_serv: '',
+        clave_unidad: '',
+        unidad: '',
+        cantidad: 1,
+        precio: 0,
+        descuento: 0,
+        impuestos: [], // pendiente UI impuestos
+      });
+      this.recalcularTotales();
+    },
+    eliminarConcepto(i){
+      this.form.conceptos.splice(i,1);
+      this.recalcularTotales();
+    },
+    buscarProducto(idx){
+      const row = this.form.conceptos[idx];
+      if (!row || !row.query || row.query.length < 2) { row.suggestions = []; return; }
+      const url = `${opts.apiProductosBuscar}?q=${encodeURIComponent(row.query)}&rfc=${encodeURIComponent(opts.rfcUsuarioId)}`;
+      fetch(url).then(r=>r.json()).then(list=>{
+        row.suggestions = (list || []).slice(0,8);
+      }).catch(()=>{ row.suggestions = []; });
+    },
+    aplicarSugerencia(idx, s){
+      const row = this.form.conceptos[idx];
+      if (!row) return;
+      row.descripcion     = s.descripcion ?? row.descripcion;
+      row.clave_prod_serv = s.clave_prod_serv ?? row.clave_prod_serv;
+      row.clave_unidad    = s.clave_unidad ?? row.clave_unidad;
+      row.unidad          = s.unidad ?? row.unidad;
+      if (typeof s.precio !== 'undefined') row.precio = Number(s.precio);
+      row.query = '';
+      row.suggestions = [];
+      this.recalcularTotales();
+    },
+    calcImporte(row){
+      const subt = Number(row.cantidad||0) * Number(row.precio||0);
+      const desc = Number(row.descuento||0);
+      return Math.max(0, subt - desc);
+    },
+    recalcularTotales(){
+      let subtotal=0, descuento=0, impuestos=0;
+      for (const r of this.form.conceptos){
+        const sub = Number(r.cantidad||0) * Number(r.precio||0);
+        const des = Number(r.descuento||0);
+        subtotal += sub;
+        descuento += des;
+        // impuestos por ahora 0; cuando agreguemos IU de impuestos por concepto, sumar aquí
+      }
+      const total = subtotal - descuento + impuestos;
+      this.totales = { subtotal, descuento, impuestos, total };
+    },
+
+    // ----- relacionados -----
+    agregarRelacionado(){
+      this.form.relacionados.push({ uid:this.uid(), tipo_relacion:'', uuid:'' });
+    },
+    eliminarRelacionado(i){
+      this.form.relacionados.splice(i,1);
+    },
+
+    // ----- acciones -----
+    previewFactura(){
+      // TODO: post a /facturacion/facturas/preview con this.form
+      alert('Previsualización: pendiente de integrar endpoint /preview');
+    },
+    guardarBorrador(){
+      // TODO: post a /facturacion/facturas/guardar con this.form (estatus prefactura)
+      alert('Guardar prefactura: pendiente de integrar endpoint /guardar');
+    },
+    timbrarFactura(){
+      // TODO validaciones -> post al endpoint de timbrado
+      alert('Timbrar: pendiente de integrar lógica de timbrado');
+    },
+  });
+
+</script>
+@endpush
