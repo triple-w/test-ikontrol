@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Schema;
 
 class FacturaUiController extends Controller
 {
@@ -58,84 +57,82 @@ class FacturaUiController extends Controller
 
     private function obtenerSiguienteFolio(int $rfcUsuarioId, string $tipo): array
     {
-        // Detecta columnas disponibles en 'folios'
-        $hasRfcUsuarioId = Schema::hasColumn('folios', 'rfc_usuario_id');
-        $hasRfcId        = Schema::hasColumn('folios', 'rfc_id');
-
-        // Columnas posibles para "tipo"
-        $posiblesTipo = [
-            'tipo',                // I / E
-            'tipo_cfdi',           // I / E
-            'tipo_de_comprobante', // I / E
-            'tipo_comprobante',    // I / E
-            'comprobante',         // 'Ingreso' / 'Egreso'
-            'clase',               // a veces guardan 'Ingreso'/'Egreso' aquí
-        ];
-        $colTipo = null;
-        foreach ($posiblesTipo as $c) {
-            if (Schema::hasColumn('folios', $c)) { $colTipo = $c; break; }
-        }
-
-        // Columnas posibles para serie y folio
-        $posiblesSerie = ['serie','serie_factura','serie_ingreso','serie_egreso'];
-        $colSerie = null;
-        foreach ($posiblesSerie as $c) {
-            if (Schema::hasColumn('folios', $c)) { $colSerie = $c; break; }
-        }
-
-        $posiblesFolioActual = ['folio_actual','folio','ultimo_folio','consecutivo'];
-        $colFolioActual = null;
-        foreach ($posiblesFolioActual as $c) {
-            if (Schema::hasColumn('folios', $c)) { $colFolioActual = $c; break; }
-        }
-
-        $posiblesFolioFin = ['folio_fin','folio_hasta','hasta','max_folio'];
-        $colFolioFin = null;
-        foreach ($posiblesFolioFin as $c) {
-            if (Schema::hasColumn('folios', $c)) { $colFolioFin = $c; break; }
-        }
-
-        // Construye la query sin referenciar columnas inexistentes
-        $q = \DB::table('folios');
-
-        // Scope por RFC activo (usa rfc_usuario_id si existe; si no, intenta rfc_id)
-        if ($hasRfcUsuarioId) {
-            $q->where('rfc_usuario_id', $rfcUsuarioId);
-        } elseif ($hasRfcId) {
-            $q->where('rfc_id', $rfcUsuarioId);
-        }
-
-        // Filtro por tipo si hay columna para ello
-        if ($colTipo) {
-            // Algunas tablas guardan 'Ingreso'/'Egreso' en lugar de 'I'/'E'
-            $mapLargo = ['I' => 'Ingreso', 'E' => 'Egreso'];
-            if (in_array($colTipo, ['comprobante','clase'])) {
-                $q->where($colTipo, $mapLargo[$tipo] ?? $tipo);
-            } else {
-                $q->where($colTipo, $tipo);
-            }
-        }
-
-        $row = $q->orderBy('id')->first();
+        // Ajusta a tu estructura real de tabla de folios
+        // Campos esperados: rfc_usuario_id, tipo ('I'|'E'), serie, folio_actual, folio_fin (opcional)
+        $row = DB::table('folios')
+            ->where('rfc_usuario_id', $rfcUsuarioId)
+            ->where(function ($q) use ($tipo) {
+                // Algunas BD usan 'tipo' y otras 'tipo_comprobante'
+                $q->where('tipo', $tipo)->orWhere('tipo_comprobante', $tipo);
+            })
+            ->orderBy('id')
+            ->first();
 
         if (!$row) {
-            // Sin configuración: regresa vacío para que la UI lo muestre claramente
             return ['serie' => '', 'folio' => ''];
         }
 
-        $serie       = $colSerie       ? (string) ($row->{$colSerie} ?? '') : '';
-        $folioActual = $colFolioActual ? (int) ($row->{$colFolioActual} ?? 0) : 0;
-        $folioFin    = $colFolioFin    ? (int) ($row->{$colFolioFin} ?? 0)    : 0;
+        $folioActual = (int) ($row->folio_actual ?? 0);
+        $siguiente = $folioActual > 0 ? ($folioActual + 1) : 1;
 
-        $siguiente = $folioActual > 0 ? $folioActual + 1 : 1;
-        if ($folioFin > 0) {
-            $siguiente = min($siguiente, $folioFin);
+        // Si existe folio_fin, respeta el rango
+        if (isset($row->folio_fin) && (int)$row->folio_fin > 0) {
+            $siguiente = min($siguiente, (int)$row->folio_fin);
         }
 
         return [
-            'serie' => $serie,
-            'folio' => (string) $siguiente,
+            'serie' => (string)($row->serie ?? ''),
+            'folio' => (string)$siguiente,
         ];
     }
 
+    // GET /api/productos/buscar?q=...
+    public function buscarProductos(Request $request)
+    {
+        $rfcUsuarioId = (int) $request->input('rfc_usuario_id');
+        $q = trim((string) $request->input('q', ''));
+
+        $productos = DB::table('productos')
+            ->when($rfcUsuarioId, fn($qb) => $qb->where('rfc_usuario_id', $rfcUsuarioId))
+            ->when($q !== '', function ($qb) use ($q) {
+                $qb->where(function ($w) use ($q) {
+                    $w->where('descripcion', 'like', "%{$q}%")
+                      ->orWhere('no_identificacion', 'like', "%{$q}%");
+                });
+            })
+            ->orderBy('descripcion')
+            ->limit(20)
+            ->get([
+                'id',
+                'descripcion',
+                'precio',
+                'clave_prod_serv_id',
+                'clave_unidad_id',
+                'unidad',
+            ]);
+
+        return response()->json($productos);
+    }
+
+    // POST /facturacion/facturas/preview
+    public function preview(Request $request)
+    {
+        // Valida lo mínimo para visualizar
+        $validated = $request->validate([
+            'encabezado'  => 'required|array',
+            'cliente'     => 'required|array',
+            'conceptos'   => 'required|array|min:1',
+            'relaciones'  => 'array',
+            'totales'     => 'required|array',
+        ]);
+
+        return view('facturacion.facturas.preview', $validated);
+    }
+
+    // POST /facturacion/facturas/guardar  (placeholder)
+    public function store(Request $request)
+    {
+        // Aquí harás validaciones SAT, armado XML, timbrado, envío, timbres--
+        return back()->with('status', 'Guardado (placeholder)');
+    }
 }
