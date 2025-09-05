@@ -1,138 +1,117 @@
 <?php
-
 namespace App\Http\Controllers\Facturacion;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cliente;
+use App\Models\Producto;
+use App\Models\SeriesFolio;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class FacturaUiController extends Controller
 {
     public function create(Request $request)
     {
         $user = $request->user();
-        $rfcUsuarioId = (int) session('rfc_activo_id');
 
-        // Ventana de 72h
-        $now = Carbon::now();
-        $minFecha = $now->copy()->subHours(72)->format('Y-m-d\TH:i');
-        $maxFecha = $now->copy()->format('Y-m-d\TH:i');
+        // 1) Obtén el RFC activo desde sesión (compatibles con nombres anteriores)
+        $rfcUsuarioId = session('rfc_usuario_id') ?? session('rfc_activo_id');
 
-        // Clientes visibles en el select (lo que pediste)
+        // 2) Si no hubiera en sesión, toma el primero del usuario (detectando la FK)
+        if (!$rfcUsuarioId) {
+            $colUserRU = null;
+            foreach (['users_id', 'user_id', 'usuario_id'] as $c) {
+                if (Schema::hasColumn('rfc_usuarios', $c)) { $colUserRU = $c; break; }
+            }
+            $q = DB::table('rfc_usuarios');
+            if ($colUserRU) $q->where($colUserRU, $user->id);
+            $rfcUsuarioId = $q->orderBy('id')->value('id');
+            if ($rfcUsuarioId) {
+                session(['rfc_usuario_id' => $rfcUsuarioId]);
+            }
+        }
+
+        // 3) RFC texto para mostrar en la cabecera
+        $rfcActivo = DB::table('rfc_usuarios')->where('id', $rfcUsuarioId)->value('rfc') ?? '—';
+
+        // 4) Lista de clientes con los campos que pediste
         $clientes = DB::table('clientes')
-            ->when($rfcUsuarioId, fn($q) => $q->where('rfc_usuario_id', $rfcUsuarioId))
-            ->orderBy('razon_social')
+            ->when(Schema::hasColumn('clientes', 'rfc_usuario_id'),
+                fn($q) => $q->where('rfc_usuario_id', $rfcUsuarioId))
+            ->orderBy('razon_social', 'asc')
             ->get([
-                'id',
-                'rfc',
-                'razon_social',
-                'calle', 'no_ext', 'no_int', 'colonia', 'localidad',
-                'estado', 'codigo_postal', 'pais', 'email',
+                'id','rfc','razon_social',
+                'calle','no_ext','no_int','colonia','localidad','estado','codigo_postal','pais',
+                'email',
             ]);
-
-        // Serie/Folio por default (Ingreso)
-        $serieFolio = $this->obtenerSiguienteFolio($rfcUsuarioId, 'I');
 
         return view('facturacion.facturas.create', [
-            'rfcUsuarioId' => $rfcUsuarioId,
+            'rfcUsuarioId' => (int) $rfcUsuarioId,
+            'rfcActivo'    => $rfcActivo,
             'clientes'     => $clientes,
-            'minFecha'     => $minFecha,
-            'maxFecha'     => $maxFecha,
-            'defaultSerie' => $serieFolio['serie'] ?? '',
-            'defaultFolio' => $serieFolio['folio'] ?? '',
         ]);
     }
 
-    // GET /api/series/next?tipo=I|E&rfc_usuario_id=#
+    // Serie/Folio automáticos por tipo (I,E,P,N)
     public function nextFolio(Request $request)
     {
-        $request->validate([
-            'tipo'            => 'required|in:I,E',
-            'rfc_usuario_id'  => 'required|integer',
+        $request->validate(['tipo' => 'required|in:I,E,P,N']);
+        $rfcId = optional(Auth::user()->rfcs->firstWhere('rfc', session('rfc_seleccionado')))->id;
+
+        $defSerie = [
+            'I' => 'F',   // Factura ingreso
+            'E' => 'NC',  // Nota de crédito
+            'P' => 'CP',  // Complemento de pago
+            'N' => 'NOM', // Nómina
+        ][$request->tipo];
+
+        $cfg = SeriesFolio::firstOrCreate(
+            ['rfc_id' => $rfcId, 'tipo_comprobante' => $request->tipo],
+            ['serie' => $defSerie, 'ultimo_folio' => 0]
+        );
+
+        return response()->json([
+            'serie' => $cfg->serie,
+            'folio' => $cfg->ultimo_folio + 1,
         ]);
-        $data = $this->obtenerSiguienteFolio((int)$request->rfc_usuario_id, $request->tipo);
-        return response()->json($data);
     }
 
-    private function obtenerSiguienteFolio(int $rfcUsuarioId, string $tipo): array
-    {
-        // Ajusta a tu estructura real de tabla de folios
-        // Campos esperados: rfc_usuario_id, tipo ('I'|'E'), serie, folio_actual, folio_fin (opcional)
-        $row = DB::table('folios')
-            ->where('rfc_usuario_id', $rfcUsuarioId)
-            ->where(function ($q) use ($tipo) {
-                // Algunas BD usan 'tipo' y otras 'tipo_comprobante'
-                $q->where('tipo', $tipo)->orWhere('tipo_comprobante', $tipo);
-            })
-            ->orderBy('id')
-            ->first();
-
-        if (!$row) {
-            return ['serie' => '', 'folio' => ''];
-        }
-
-        $folioActual = (int) ($row->folio_actual ?? 0);
-        $siguiente = $folioActual > 0 ? ($folioActual + 1) : 1;
-
-        // Si existe folio_fin, respeta el rango
-        if (isset($row->folio_fin) && (int)$row->folio_fin > 0) {
-            $siguiente = min($siguiente, (int)$row->folio_fin);
-        }
-
-        return [
-            'serie' => (string)($row->serie ?? ''),
-            'folio' => (string)$siguiente,
-        ];
-    }
-
-    // GET /api/productos/buscar?q=...
+    // Autocompletar productos
     public function buscarProductos(Request $request)
     {
-        $rfcUsuarioId = (int) $request->input('rfc_usuario_id');
-        $q = trim((string) $request->input('q', ''));
+        $q = trim($request->get('q',''));
+        if ($q === '') return response()->json([]);
 
-        $productos = DB::table('productos')
-            ->when($rfcUsuarioId, fn($qb) => $qb->where('rfc_usuario_id', $rfcUsuarioId))
-            ->when($q !== '', function ($qb) use ($q) {
-                $qb->where(function ($w) use ($q) {
-                    $w->where('descripcion', 'like', "%{$q}%")
-                      ->orWhere('no_identificacion', 'like', "%{$q}%");
-                });
-            })
-            ->orderBy('descripcion')
-            ->limit(20)
-            ->get([
-                'id',
-                'descripcion',
-                'precio',
-                'clave_prod_serv_id',
-                'clave_unidad_id',
-                'unidad',
-            ]);
+        $prods = Producto::where('descripcion','like',"%{$q}%")
+            ->orderBy('descripcion')->limit(20)
+            ->get(['id','descripcion','precio','clave_prod_serv_id','clave_unidad_id','unidad']);
 
-        return response()->json($productos);
+        return response()->json($prods);
     }
 
-    // POST /facturacion/facturas/preview
+    // Vista previa (HTML simple por ahora)
     public function preview(Request $request)
     {
-        // Valida lo mínimo para visualizar
-        $validated = $request->validate([
-            'encabezado'  => 'required|array',
-            'cliente'     => 'required|array',
-            'conceptos'   => 'required|array|min:1',
-            'relaciones'  => 'array',
-            'totales'     => 'required|array',
+        // solo validación básica; la validación fuerte la pondrás en StoreFacturaRequest cuando timbres
+        $data = $request->validate([
+            'encabezado' => 'required|array',
+            'cliente'    => 'required|array',
+            'conceptos'  => 'required|array|min:1',
+            'relaciones' => 'array',
+            'totales'    => 'array',
         ]);
 
-        return view('facturacion.facturas.preview', $validated);
+        return view('facturacion.facturas.preview', $data); // crea esta vista con tu invoice
     }
 
-    // POST /facturacion/facturas/guardar  (placeholder)
+    // Placeholder de guardado/timbrado
     public function store(Request $request)
     {
-        // Aquí harás validaciones SAT, armado XML, timbrado, envío, timbres--
+        // Aquí harás: validación SAT, armado de XML, timbrado PAC, envío correo, decremento de timbres, etc.
         return back()->with('status', 'Guardado (placeholder)');
     }
 }
