@@ -71,49 +71,48 @@ class FoliosController extends Controller
         return redirect()->route('folios.index')->with('ok','Serie de folios eliminada.');
     }
 
-    public function apiNext(Request $r)
+    public function apiNext(\Illuminate\Http\Request $r)
     {
-        // Solo para facturas/notas: I y E
-        $tipo = strtoupper($r->query('tipo', 'I'));
-        if (!in_array($tipo, ['I','E'])) {
-            $tipo = 'I';
+        // La UI manda I/E; tu tabla guarda Ingreso/Egreso.
+        $tipoUi = strtoupper($r->query('tipo', 'I'));
+        if (!in_array($tipoUi, ['I','E'])) $tipoUi = 'I';
+
+        $tipoBd = $tipoUi === 'I' ? 'Ingreso' : 'Egreso';
+
+        // RFC activo (si filtras por rfc_usuario_id, úsalo; si no, omite)
+        $rfcUsuarioId = (int) session('rfc_usuario_id');
+
+        // Tu tabla: id, users_id, tipo, serie, folio, rfc_usuario_id
+        // -> NO usamos 'activo' porque no existe en tu esquema
+        $q = \DB::table('folios')->where('tipo', $tipoBd);
+
+        // Si tu tabla relaciona por rfc_usuario_id, descomenta:
+        if ($rfcUsuarioId) {
+            $q->where('rfc_usuario_id', $rfcUsuarioId);
         }
 
-        $rfc = session('rfc_seleccionado');
-        abort_unless($rfc, 422, 'RFC activo requerido.');
+        $folioRow = $q->orderByDesc('id')->first();
 
-        // Busca el folio/serie para el RFC activo y tipo
-        $folio = \App\Models\Folio::forActiveRfc()
-            ->where('tipo', $tipo)
-            ->orderByDesc('id')
-            ->first();
-
-        if (!$folio) {
-            // Sin configuración: regresa valores por defecto
+        if (!$folioRow) {
             return response()->json([
-                'serie'     => null,
-                'siguiente' => 1,
-                'folio'     => 1,   // <- agregado para que la UI lo lea directamente
-                'tipo'      => $tipo,
+                'serie'     => '',
+                'siguiente' => 1,  // por compatibilidad con otros consumidores
+                'folio'     => 1,  // lo que la UI espera
+                'tipo'      => $tipoUi,
             ]);
         }
 
-        $serie = $folio->serie ?? $folio->prefijo ?? null;
-
-        // Toma el siguiente consecutivo con tolerancia a distintos nombres de columna
-        $sig =
-            ($folio->siguiente ?? null)
-            ?? ($folio->folio_siguiente ?? null)
-            ?? (($folio->folio_actual ?? $folio->consecutivo ?? $folio->folio ?? 0) + 1);
-
-        $sig = (int) $sig;
+        $serie = (string) ($folioRow->serie ?? '');
+        // En tu tabla existe 'folio' (normalmente el último usado). El siguiente es +1.
+        $sig   = (int) ($folioRow->folio ?? 0) + 1;
 
         return response()->json([
             'serie'     => $serie,
-            'siguiente' => $sig,  // compat con cualquier otro consumidor
-            'folio'     => $sig,  // <- clave que la vista de facturas espera
-            'tipo'      => $tipo,
+            'siguiente' => $sig,  // mantenemos ambas llaves
+            'folio'     => $sig,
+            'tipo'      => $tipoUi,
         ]);
     }
+
 
 }
