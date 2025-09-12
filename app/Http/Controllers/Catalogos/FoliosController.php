@@ -83,7 +83,7 @@ class FoliosController extends Controller
         abort_unless($rfc, 422, 'RFC activo requerido.');
 
         // Busca el folio/serie para el RFC activo y tipo
-        $folio = Folio::forActiveRfc()
+        $folio = \App\Models\Folio::forActiveRfc()
             ->where('tipo', $tipo)
             ->orderByDesc('id')
             ->first();
@@ -93,6 +93,7 @@ class FoliosController extends Controller
             return response()->json([
                 'serie'     => null,
                 'siguiente' => 1,
+                'folio'     => 1,   // <- agregado para que la UI lo lea directamente
                 'tipo'      => $tipo,
             ]);
         }
@@ -101,13 +102,16 @@ class FoliosController extends Controller
 
         // Toma el siguiente consecutivo con tolerancia a distintos nombres de columna
         $sig =
-            $folio->siguiente
-            ?? $folio->folio_siguiente
-            ?? (($folio->folio_actual ?? $folio->consecutivo ?? 0) + 1);
+            ($folio->siguiente ?? null)
+            ?? ($folio->folio_siguiente ?? null)
+            ?? (($folio->folio_actual ?? $folio->consecutivo ?? $folio->folio ?? 0) + 1);
+
+        $sig = (int) $sig;
 
         return response()->json([
             'serie'     => $serie,
-            'siguiente' => (int) $sig,
+            'siguiente' => $sig,  // compat con cualquier otro consumidor
+            'folio'     => $sig,  // <- clave que la vista de facturas espera
             'tipo'      => $tipo,
         ]);
     }

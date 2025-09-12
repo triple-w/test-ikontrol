@@ -610,10 +610,13 @@
     onTipoComprobanteChange(){ this.pedirSiguienteFolio(); },
     pedirSiguienteFolio(){
     const url = `${opts.apiSeriesNext}?tipo=${encodeURIComponent(this.form.tipo_comprobante)}`;
-    fetch(url).then(r=>r.json()).then(j=>{
+    fetch(url)
+        .then(r=>r.json())
+        .then(j=>{
         this.form.serie = j.serie || '';
-        this.form.folio = j.folio || '';
-    }).catch(()=>{});
+        this.form.folio = (j.folio != null ? j.folio : j.siguiente) || '';
+        })
+        .catch(()=>{});
     },
     clampFecha(){
       if (!this.form.fecha) { this.form.fecha = this.maxFecha; return; }
