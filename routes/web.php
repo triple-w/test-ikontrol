@@ -32,11 +32,11 @@ Route::post('/cambiar-rfc', [RfcController::class, 'cambiar'])->name('rfc.cambia
 
 Route::middleware(['auth'])->group(function () {
 
-    // --- API auxiliares (SE MANTIENEN para compatibilidad) ---
-    Route::get('/api/series/next',        [FoliosController::class,    'apiNext'])->name('series.next');
-    Route::get('/api/productos/buscar',   [ProductosController::class, 'buscar'])->name('productos.buscar');
-    Route::get('/api/sat/clave-prod-serv',[ProductosController::class, 'buscarClaveProdServ'])->name('sat.clave_prod_serv');
-    Route::get('/api/sat/clave-unidad',   [ProductosController::class, 'buscarClaveUnidad'])->name('sat.clave_unidad');
+    // --- API auxiliares (para la UI de facturas) ---
+    Route::get('/api/series/next',        [\App\Http\Controllers\Facturacion\FacturaUiController::class, 'apiSeriesNext'])->name('series.next');
+    Route::get('/api/productos/buscar',   [\App\Http\Controllers\Facturacion\FacturaUiController::class, 'apiProductosBuscar'])->name('productos.buscar');
+    Route::get('/api/sat/clave-prod-serv',[\App\Http\Controllers\Facturacion\FacturaUiController::class, 'apiSatClaveProdServ'])->name('sat.clave_prod_serv');
+    Route::get('/api/sat/clave-unidad',   [\App\Http\Controllers\Facturacion\FacturaUiController::class, 'apiSatClaveUnidad'])->name('sat.clave_unidad');
 
     // Quick update de cliente desde el modal lateral en create de facturas
     Route::put('/catalogos/clientes/{cliente}/quick-update', [ClientesController::class, 'quickUpdate'])->name('clientes.quickUpdate');
@@ -48,11 +48,14 @@ Route::middleware(['auth'])->group(function () {
     // Preview (validación obligatoria)
     Route::post('/facturacion/facturas/preview', [FacturaUiController::class, 'preview'])->name('facturas.preview');
 
-    // Guardado (borrador / persistencia que definas en el controlador)
-    Route::post('/facturacion/facturas', [FacturaUiController::class, 'store'])->name('facturas.store');
+    // Guardado (borrador)
+    Route::post('/facturacion/facturas',            [FacturaUiController::class, 'store'])->name('facturas.store');
+    // Alias que usa la vista de preview:
+    Route::post('/facturacion/facturas/guardar',    [FacturaUiController::class, 'store'])->name('facturas.guardar');
 
-    // Timbrado desde el preview (añadido; no existía conflicto previo)
-    Route::post('/facturacion/facturas/timbrar', [FacturaUiController::class, 'timbrar'])->name('facturas.timbrar');
+    // Timbrado desde el preview
+    Route::post('/facturacion/facturas/timbrar',    [FacturaUiController::class, 'timbrar'])->name('facturas.timbrar');
+
 });
 
 // ======================== ÁREA AUTENTICADA ========================
