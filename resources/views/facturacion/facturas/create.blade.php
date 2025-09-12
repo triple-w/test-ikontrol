@@ -98,24 +98,23 @@
         </div>
 
         {{-- Método de pago (SAT) --}}
-        <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Método de pago</label>
         <select x-model="form.metodo_pago" class="form-select w-full">
-            @foreach($metodosPago as $m)
-            <option value="{{ $m->clave }}">{{ $m->clave }} — {{ $m->descripcion }}</option>
-            @endforeach
+        @foreach($metodosPago as $m)
+            <option value="{{ is_array($m) ? $m['clave'] : $m->clave }}">
+            {{ is_array($m) ? $m['clave'] : $m->clave }} — {{ is_array($m) ? $m['descripcion'] : $m->descripcion }}
+            </option>
+        @endforeach
         </select>
-        </div>
 
         {{-- Forma de pago (SAT) --}}
-        <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Forma de pago</label>
         <select x-model="form.forma_pago" class="form-select w-full">
-            @foreach($formasPago as $f)
-            <option value="{{ $f->clave }}">{{ $f->clave }} — {{ $f->descripcion }}</option>
-            @endforeach
+        @foreach($formasPago as $f)
+            <option value="{{ is_array($f) ? $f['clave'] : $f->clave }}">
+            {{ is_array($f) ? $f['clave'] : $f->clave }} — {{ is_array($f) ? $f['descripcion'] : $f->descripcion }}
+            </option>
+        @endforeach
         </select>
-        </div>
+
 
 
         {{-- Comentarios para PDF --}}

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Facturacion;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
@@ -23,31 +24,79 @@ class FacturaUiController extends Controller
         $rfcActivo = session('rfc_seleccionado');
         $rfcUsuarioId = (int) session('rfc_usuario_id');
 
-        // Si no hay id en sesión, intentamos resolverlo por tabla rfcs/rfc_usuarios
         if (!$rfcUsuarioId && $rfcActivo) {
             $rfcUsuarioId = (int) DB::table('rfc_usuarios')->where('rfc', $rfcActivo)->value('id');
         }
 
-        // Clientes visibles (ajusta where si ligas por rfc_usuario_id)
+        // =======================
+        // Clientes (ajusta where si ligas por rfc_usuario_id)
+        // =======================
         $clientes = DB::table('clientes')
-            // ->where('rfc_usuario_id', $rfcUsuarioId) // <- descomenta si aplica en tu esquema
+            // ->where('rfc_usuario_id', $rfcUsuarioId) // ← descomenta si aplica
             ->orderBy('razon_social')
             ->get([
-                'id','rfc','razon_social','email','calle','no_ext','no_int','colonia','localidad','estado','codigo_postal','pais'
+                'id','rfc','razon_social','email',
+                'calle','no_ext','no_int','colonia','localidad','estado','codigo_postal','pais'
             ]);
 
-        // Catálogos SAT de pago
-        // NOTA: ajusta el nombre de tablas/columnas si en tu BD son otras (por ejemplo c_forma_pago / c_metodo_pago).
-        $formasPago = DB::table('sat_forma_pago')
-            ->orderBy('clave')
-            ->get(['clave','descripcion']); // ej: 03, "Transferencia electrónica"
+        // =======================
+        // SAT: Método y Forma de pago
+        // Si no existen las tablas, usamos FALLBACK arrays
+        // =======================
 
-        $metodosPago = DB::table('sat_metodo_pago')
-            ->whereIn('clave', ['PUE','PPD'])
-            ->orderBy('clave')
-            ->get(['clave','descripcion']); // PUE/PPD
+        // Fallbacks compactos y prácticos (puedes ampliar después):
+        $fallbackFormasPago = collect([
+            ['clave'=>'01','descripcion'=>'Efectivo'],
+            ['clave'=>'02','descripcion'=>'Cheque nominativo'],
+            ['clave'=>'03','descripcion'=>'Transferencia electrónica de fondos'],
+            ['clave'=>'04','descripcion'=>'Tarjeta de crédito'],
+            ['clave'=>'28','descripcion'=>'Tarjeta de débito'],
+            ['clave'=>'29','descripcion'=>'Tarjeta de servicios'],
+            ['clave'=>'99','descripcion'=>'Por definir'],
+        ]);
 
-        // Ventana SAT: 72h hacia atrás hasta "ahora"
+        $fallbackMetodosPago = collect([
+            ['clave'=>'PUE','descripcion'=>'Pago en una sola exhibición'],
+            ['clave'=>'PPD','descripcion'=>'Pago en parcialidades o diferido'],
+        ]);
+
+        // Intentar leer de BD si existen tablas
+        if (Schema::hasTable('sat_forma_pago')) {
+            $formasPago = DB::table('sat_forma_pago')
+                ->orderBy('clave')
+                ->get(['clave','descripcion']);
+            if ($formasPago->isEmpty()) $formasPago = $fallbackFormasPago;
+        } elseif (Schema::hasTable('c_forma_pago')) {
+            // Alterno si tu tabla se llama distinto (c_forma_pago)
+            $formasPago = DB::table('c_forma_pago')
+                ->orderBy('Clave')
+                ->get()
+                ->map(fn($r)=>['clave'=>$r->Clave,'descripcion'=>$r->Descripcion]);
+            if ($formasPago->isEmpty()) $formasPago = $fallbackFormasPago;
+        } else {
+            $formasPago = $fallbackFormasPago;
+        }
+
+        if (Schema::hasTable('sat_metodo_pago')) {
+            $metodosPago = DB::table('sat_metodo_pago')
+                ->whereIn('clave', ['PUE','PPD'])
+                ->orderBy('clave')
+                ->get(['clave','descripcion']);
+            if ($metodosPago->isEmpty()) $metodosPago = $fallbackMetodosPago;
+        } elseif (Schema::hasTable('c_metodo_pago')) {
+            $metodosPago = DB::table('c_metodo_pago')
+                ->whereIn('Clave', ['PUE','PPD'])
+                ->orderBy('Clave')
+                ->get()
+                ->map(fn($r)=>['clave'=>$r->Clave,'descripcion'=>$r->Descripcion]);
+            if ($metodosPago->isEmpty()) $metodosPago = $fallbackMetodosPago;
+        } else {
+            $metodosPago = $fallbackMetodosPago;
+        }
+
+        // =======================
+        // Ventana de fecha (72h)
+        // =======================
         $minFecha = now()->copy()->subHours(72)->format('Y-m-d\TH:i');
         $maxFecha = now()->format('Y-m-d\TH:i');
 
@@ -61,6 +110,7 @@ class FacturaUiController extends Controller
             'maxFecha'      => $maxFecha,
         ]);
     }
+
 
     /**
      * Devuelve la siguiente Serie/Folio para el RFC activo y tipo (I/E).
