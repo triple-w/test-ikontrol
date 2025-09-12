@@ -334,8 +334,8 @@
     </div>
 
     {{-- FORMULARIO OCULTO PARA PREVIEW (abre en la misma pestaña, overlay en servidor) --}}
-    <form x-ref="previewForm" :action="opts.routePreview" method="POST" class="hidden">
-      <input type="hidden" name="_token" :value="opts.csrf">
+    <form x-ref="previewForm" action="{{ route('facturas.preview') }}" method="POST" class="hidden">
+      @csrf
       <input type="hidden" name="payload" :value="JSON.stringify(form)">
     </form>
 
