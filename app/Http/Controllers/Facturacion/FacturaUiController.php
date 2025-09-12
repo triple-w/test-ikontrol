@@ -291,13 +291,58 @@ class FacturaUiController extends Controller
      * Guardar (borrador) — alias
      * POST /facturacion/facturas  y /facturacion/facturas/guardar
      */
-    public function store(Request $r) { return $this->guardar($r); }
+    public function store(\Illuminate\Http\Request $r) { return $this->guardar($r); }
 
-    public function guardar(Request $r)
+    public function guardar(\Illuminate\Http\Request $r)
     {
-        // Persistencia real pendiente según tu modelo/tablas
-        return back()->with('ok', 'Prefactura guardada (placeholder).');
+        $payload = json_decode($r->input('payload','{}'), true) ?: [];
+        // Validación mínima (el preview ya validó y calculó)
+        if (!isset($payload['cliente_id']) || !isset($payload['conceptos'])) {
+            return back()->with('error','Payload incompleto.');
+        }
+
+        // Recalcula totales por seguridad
+        $subtotal=0; $descuento=0; $impuestos=0;
+        foreach ($payload['conceptos'] as $c) {
+            $sub = (float)$c['cantidad'] * (float)$c['precio'];
+            $des = (float)($c['descuento'] ?? 0);
+            $base = max($sub - $des, 0);
+            $subtotal += $sub;
+            $descuento += $des;
+            foreach (($c['impuestos'] ?? []) as $i) {
+                if (($i['factor'] ?? '') === 'Exento') continue;
+                $tasa = (float)($i['tasa'] ?? 0) / 100;
+                $m = $base * $tasa;
+                $impuestos += (($i['tipo'] ?? 'T') === 'R') ? -$m : $m;
+            }
+        }
+        $total = $subtotal - $descuento + $impuestos;
+
+        $b = new \App\Models\FacturaBorrador();
+        $b->user_id        = auth()->id();
+        $b->rfc_usuario_id = (int) session('rfc_usuario_id');
+        $b->cliente_id     = (int) $payload['cliente_id'];
+        $b->tipo           = $payload['tipo_comprobante'] ?? 'I';
+        $b->serie          = $payload['serie'] ?? null;
+        $b->folio          = (string)($payload['folio'] ?? '');
+        $b->fecha          = $payload['fecha'] ?? now();
+
+        $b->metodo_pago    = $payload['metodo_pago'] ?? 'PUE';
+        $b->forma_pago     = $payload['forma_pago'] ?? '99';
+        $b->comentarios_pdf= $payload['comentarios_pdf'] ?? null;
+
+        $b->subtotal       = round($subtotal, 2);
+        $b->descuento      = round($descuento, 2);
+        $b->impuestos      = round($impuestos, 2);
+        $b->total          = round($total, 2);
+
+        $b->payload        = $payload;
+        $b->estatus        = 'borrador';
+        $b->save();
+
+        return redirect()->route('facturas.preview')->with('ok', 'Borrador guardado (#'.$b->id.').');
     }
+
 
     /**
      * Timbrar desde preview (placeholder)
