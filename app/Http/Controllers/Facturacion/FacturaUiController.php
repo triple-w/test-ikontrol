@@ -116,40 +116,43 @@ class FacturaUiController extends Controller
      * Devuelve la siguiente Serie/Folio para el RFC activo y tipo (I/E).
      * GET /api/series/next?tipo=I|E
      */
-    public function apiSeriesNext(Request $r)
+    public function apiSeriesNext(\Illuminate\Http\Request $r)
     {
-        $tipo = strtoupper($r->query('tipo','I'));
-        if (!in_array($tipo, ['I','E'])) $tipo = 'I';
+        $tipoUi = strtoupper($r->query('tipo','I'));
+        if (!in_array($tipoUi, ['I','E'])) $tipoUi = 'I';
 
-        // RFC del usuario (id interno)
+        // Mapeo a tu BD
+        $tipoBd = $tipoUi === 'I' ? 'Ingreso' : 'Egreso';
+
         $rfcUsuarioId = (int) session('rfc_usuario_id');
 
-        // Catálogo de folios: AJUSTA nombres de columnas según tu BD
-        // Supuesto típico: folios(id, rfc_usuario_id, tipo, serie, folio_actual, folio_inicio, folio_fin, activo)
-        $folio = DB::table('folios')
-            ->where('tipo', $tipo)
-            ->when($rfcUsuarioId, fn($q) => $q->where('rfc_usuario_id', $rfcUsuarioId))
-            ->where(function($q){ $q->whereNull('activo')->orWhere('activo',1); })
-            ->orderByDesc('id')
-            ->first();
-
-        if (!$folio) {
-            return response()->json(['serie'=>'', 'folio'=>1, 'tipo'=>$tipo]);
+        $q = \DB::table('folios')->where('tipo', $tipoBd);
+        if ($rfcUsuarioId) {
+            $q->where('rfc_usuario_id', $rfcUsuarioId);
         }
 
-        $serie = (string)($folio->serie ?? '');
-        $actual = (int)($folio->folio_actual ?? 0);
-        $inicio = (int)($folio->folio_inicio ?? 1);
-        $fin    = (int)($folio->folio_fin ?? 0);
+        $folioRow = $q->orderByDesc('id')->first();
 
-        $next = max($actual + 1, $inicio);
-        if ($fin > 0 && $next > $fin) {
-            // si te pasaste del rango, regresa fin (o arma el siguiente bloque según tu lógica)
-            $next = $fin;
+        if (!$folioRow) {
+            return response()->json([
+                'serie'     => '',
+                'siguiente' => 1,
+                'folio'     => 1,
+                'tipo'      => $tipoUi,
+            ]);
         }
 
-        return response()->json(['serie'=>$serie, 'folio'=>$next, 'tipo'=>$tipo]);
+        $serie = (string) ($folioRow->serie ?? '');
+        $sig   = (int) ($folioRow->folio ?? 0) + 1;
+
+        return response()->json([
+            'serie'     => $serie,
+            'siguiente' => $sig,
+            'folio'     => $sig,
+            'tipo'      => $tipoUi,
+        ]);
     }
+
 
 
     /**
