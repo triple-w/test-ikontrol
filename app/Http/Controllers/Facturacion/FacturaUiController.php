@@ -21,28 +21,45 @@ class FacturaUiController extends Controller
     public function create(Request $request)
     {
         $rfcActivo = session('rfc_seleccionado');
-
-        // ID del RFC de usuario activo
         $rfcUsuarioId = (int) session('rfc_usuario_id');
+
+        // Si no hay id en sesión, intentamos resolverlo por tabla rfcs/rfc_usuarios
         if (!$rfcUsuarioId && $rfcActivo) {
-            $rfcUsuarioId = (int) RfcUsuario::query()->where('rfc', $rfcActivo)->value('id');
+            $rfcUsuarioId = (int) DB::table('rfc_usuarios')->where('rfc', $rfcActivo)->value('id');
         }
 
-        // Clientes del RFC activo con campos que la vista serializa
-        $clientes = Cliente::query()
-            ->forActiveRfc()
+        // Clientes visibles (ajusta where si ligas por rfc_usuario_id)
+        $clientes = DB::table('clientes')
+            // ->where('rfc_usuario_id', $rfcUsuarioId) // <- descomenta si aplica en tu esquema
             ->orderBy('razon_social')
             ->get([
-                'id','rfc','razon_social','calle','no_ext','no_int','colonia','localidad','estado','codigo_postal','pais','email',
+                'id','rfc','razon_social','email','calle','no_ext','no_int','colonia','localidad','estado','codigo_postal','pais'
             ]);
+
+        // Catálogos SAT de pago
+        // NOTA: ajusta el nombre de tablas/columnas si en tu BD son otras (por ejemplo c_forma_pago / c_metodo_pago).
+        $formasPago = DB::table('sat_forma_pago')
+            ->orderBy('clave')
+            ->get(['clave','descripcion']); // ej: 03, "Transferencia electrónica"
+
+        $metodosPago = DB::table('sat_metodo_pago')
+            ->whereIn('clave', ['PUE','PPD'])
+            ->orderBy('clave')
+            ->get(['clave','descripcion']); // PUE/PPD
 
         // Ventana SAT: 72h hacia atrás hasta "ahora"
         $minFecha = now()->copy()->subHours(72)->format('Y-m-d\TH:i');
         $maxFecha = now()->format('Y-m-d\TH:i');
 
-        return view('facturacion.facturas.create', compact(
-            'rfcActivo','rfcUsuarioId','clientes','minFecha','maxFecha'
-        ));
+        return view('facturacion.facturas.create', [
+            'rfcActivo'     => $rfcActivo,
+            'rfcUsuarioId'  => $rfcUsuarioId,
+            'clientes'      => $clientes,
+            'formasPago'    => $formasPago,
+            'metodosPago'   => $metodosPago,
+            'minFecha'      => $minFecha,
+            'maxFecha'      => $maxFecha,
+        ]);
     }
 
     /**
@@ -52,11 +69,17 @@ class FacturaUiController extends Controller
     public function apiSeriesNext(Request $r)
     {
         $tipo = strtoupper($r->query('tipo','I'));
-        if (!in_array($tipo, ['I','E'])) { $tipo = 'I'; }
+        if (!in_array($tipo, ['I','E'])) $tipo = 'I';
 
-        $folio = Folio::query()
-            ->forActiveRfc()
+        // RFC del usuario (id interno)
+        $rfcUsuarioId = (int) session('rfc_usuario_id');
+
+        // Catálogo de folios: AJUSTA nombres de columnas según tu BD
+        // Supuesto típico: folios(id, rfc_usuario_id, tipo, serie, folio_actual, folio_inicio, folio_fin, activo)
+        $folio = DB::table('folios')
             ->where('tipo', $tipo)
+            ->when($rfcUsuarioId, fn($q) => $q->where('rfc_usuario_id', $rfcUsuarioId))
+            ->where(function($q){ $q->whereNull('activo')->orWhere('activo',1); })
             ->orderByDesc('id')
             ->first();
 
@@ -64,20 +87,20 @@ class FacturaUiController extends Controller
             return response()->json(['serie'=>'', 'folio'=>1, 'tipo'=>$tipo]);
         }
 
-        // Serie tolerante a distintos esquemas
-        $serie = $folio->serie ?? ($folio->prefijo ?? '');
+        $serie = (string)($folio->serie ?? '');
+        $actual = (int)($folio->folio_actual ?? 0);
+        $inicio = (int)($folio->folio_inicio ?? 1);
+        $fin    = (int)($folio->folio_fin ?? 0);
 
-        // Siguiente número tolerante a distintos nombres de campo
-        $next =
-            ($folio->siguiente ?? null) ??
-            ($folio->folio_siguiente ?? null) ??
-            (isset($folio->folio_actual) ? ((int)$folio->folio_actual + 1) : null) ??
-            (isset($folio->consecutivo) ? ((int)$folio->consecutivo + 1) : null) ??
-            (isset($folio->folio) ? ((int)$folio->folio + 1) : null) ??
-            1;
+        $next = max($actual + 1, $inicio);
+        if ($fin > 0 && $next > $fin) {
+            // si te pasaste del rango, regresa fin (o arma el siguiente bloque según tu lógica)
+            $next = $fin;
+        }
 
-        return response()->json(['serie' => (string)$serie, 'folio' => (int)$next, 'tipo'=>$tipo]);
+        return response()->json(['serie'=>$serie, 'folio'=>$next, 'tipo'=>$tipo]);
     }
+
 
     /**
      * Busca productos por código/descripcion con campos listos para la UI.

@@ -97,25 +97,26 @@
           <p class="text-xs text-gray-500 mt-1">La fecha debe estar dentro de las últimas 72 horas.</p>
         </div>
 
-        {{-- Método de pago --}}
+        {{-- Método de pago (SAT) --}}
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Método de pago</label>
-          <select x-model="form.metodo_pago" class="form-select w-full">
-            <option value="PUE">PUE</option>
-            <option value="PPD">PPD</option>
-          </select>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Método de pago</label>
+        <select x-model="form.metodo_pago" class="form-select w-full">
+            @foreach($metodosPago as $m)
+            <option value="{{ $m->clave }}">{{ $m->clave }} — {{ $m->descripcion }}</option>
+            @endforeach
+        </select>
         </div>
 
-        {{-- Forma de pago --}}
+        {{-- Forma de pago (SAT) --}}
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Forma de pago</label>
-          <select x-model="form.forma_pago" class="form-select w-full">
-            <option value="03">Transferencia electrónica</option>
-            <option value="01">Efectivo</option>
-            <option value="04">Tarjeta de crédito</option>
-            <option value="28">Tarjeta de débito</option>
-          </select>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Forma de pago</label>
+        <select x-model="form.forma_pago" class="form-select w-full">
+            @foreach($formasPago as $f)
+            <option value="{{ $f->clave }}">{{ $f->clave }} — {{ $f->descripcion }}</option>
+            @endforeach
+        </select>
         </div>
+
 
         {{-- Comentarios para PDF --}}
         <div class="md:col-span-3">
@@ -340,30 +341,48 @@
     </form>
 
     {{-- MODAL LATERAL: EDITAR CLIENTE --}}
-    <div x-data x-on:open-modal.window="if($event.detail==='modalEditarCliente') $refs.drawerCliente.classList.remove('hidden')"
-         class="relative">
-      <div x-ref="drawerCliente" class="hidden fixed inset-0 z-40 flex">
-        <div class="fixed inset-0 bg-black/40" @click="$refs.drawerCliente.classList.add('hidden')"></div>
-        <div class="ml-auto h-full w-full max-w-lg bg-white dark:bg-gray-900 shadow-xl p-4 overflow-y-auto">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold">Editar cliente</h3>
-            <button class="text-gray-500 hover:text-gray-700" @click="$refs.drawerCliente.classList.add('hidden')">✕</button>
-          </div>
+    <div x-data="{open:false}"
+        x-on:open-modal.window="if($event.detail==='modalEditarCliente') open=true"
+        x-show="open"
+        x-transition.opacity
+        class="fixed inset-0 z-40"
+        style="display:none">
 
-          <template x-if="clienteSel && form.cliente_id">
+    {{-- Overlay --}}
+    <div class="absolute inset-0 bg-black/40" @click="open=false"></div>
+
+    {{-- Panel (derecha) --}}
+    <div class="absolute right-0 top-0 h-full w-full max-w-lg bg-white dark:bg-gray-900 shadow-xl
+                z-50 overflow-y-auto"
+        @click.stop
+        x-transition:enter="transform transition ease-in-out duration-200"
+        x-transition:enter-start="translate-x-full"
+        x-transition:enter-end="translate-x-0"
+        x-transition:leave="transform transition ease-in-out duration-200"
+        x-transition:leave-start="translate-x-0"
+        x-transition:leave-end="translate-x-full"
+        @keydown.escape.window="open=false">
+
+        <div class="p-4">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">Editar cliente</h3>
+            <button class="text-gray-500 hover:text-gray-700" @click="open=false">✕</button>
+        </div>
+
+        <template x-if="clienteSel && form.cliente_id">
             <form @submit.prevent="submitEditarCliente">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label class="text-xs text-gray-500">Razón social</label>
-                  <input class="form-input w-full" x-model="clienteEdit.razon_social">
+                <label class="text-xs text-gray-500">Razón social</label>
+                <input class="form-input w-full" x-model="clienteEdit.razon_social">
                 </div>
                 <div>
-                  <label class="text-xs text-gray-500">RFC</label>
-                  <input class="form-input w-full" x-model="clienteEdit.rfc">
+                <label class="text-xs text-gray-500">RFC</label>
+                <input class="form-input w-full" x-model="clienteEdit.rfc">
                 </div>
                 <div class="sm:col-span-2">
-                  <label class="text-xs text-gray-500">Correo</label>
-                  <input type="email" class="form-input w-full" x-model="clienteEdit.email">
+                <label class="text-xs text-gray-500">Correo</label>
+                <input type="email" class="form-input w-full" x-model="clienteEdit.email">
                 </div>
                 <div><label class="text-xs text-gray-500">Calle</label><input class="form-input w-full" x-model="clienteEdit.calle"></div>
                 <div><label class="text-xs text-gray-500">No. ext</label><input class="form-input w-full" x-model="clienteEdit.no_ext"></div>
@@ -373,120 +392,155 @@
                 <div><label class="text-xs text-gray-500">Estado</label><input class="form-input w-full" x-model="clienteEdit.estado"></div>
                 <div><label class="text-xs text-gray-500">CP</label><input class="form-input w-full" x-model="clienteEdit.codigo_postal"></div>
                 <div class="sm:col-span-2"><label class="text-xs text-gray-500">País</label><input class="form-input w-full" x-model="clienteEdit.pais"></div>
-              </div>
-
-              <div class="flex justify-end gap-2 mt-4">
-                <button type="button" class="btn bg-gray-100 dark:bg-gray-700" @click="$refs.drawerCliente.classList.add('hidden')">Cancelar</button>
-                <button type="submit" class="btn bg-violet-600 hover:bg-violet-700 text-white">Guardar</button>
-              </div>
-            </form>
-          </template>
-          <template x-if="!form.cliente_id">
-            <div class="text-sm text-gray-500">Primero selecciona un cliente.</div>
-          </template>
-        </div>
-      </div>
-    </div>
-
-    {{-- MODAL LATERAL: IMPUESTOS POR CONCEPTO --}}
-    <div x-data x-on:open-impuestos.window="
-      modalImpuestos.open = true; modalImpuestos.idx = $event.detail.idx; cargarImpuestosEdit()">
-      <template x-if="modalImpuestos.open">
-        <div class="fixed inset-0 z-40 flex">
-          <div class="fixed inset-0 bg-black/40" @click="cerrarImpuestos()"></div>
-          <div class="ml-auto h-full w-full max-w-lg bg-white dark:bg-gray-900 shadow-xl p-4 overflow-y-auto">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="text-lg font-semibold">Impuestos del concepto #<span x-text="(modalImpuestos.idx+1)"></span></h3>
-              <button class="text-gray-500 hover:text-gray-700" @click="cerrarImpuestos()">✕</button>
-            </div>
-
-            <div class="space-y-2">
-              <template x-for="(imp, i) in impuestosEdit" :key="imp.uid">
-                <div class="border rounded-lg p-3 space-y-2">
-                  <div class="grid grid-cols-2 gap-2">
-                    <div>
-                      <label class="text-xs text-gray-500">Tipo</label>
-                      <select class="form-select w-full" x-model="imp.tipo">
-                        <option value="T">Traslado</option>
-                        <option value="R">Retención</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label class="text-xs text-gray-500">Impuesto</label>
-                      <select class="form-select w-full" x-model="imp.impuesto">
-                        <option value="IVA">IVA</option>
-                        <option value="ISR">ISR</option>
-                        <option value="IEPS">IEPS</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label class="text-xs text-gray-500">Factor</label>
-                      <select class="form-select w-full" x-model="imp.factor">
-                        <option value="Tasa">Tasa</option>
-                        <option value="Cuota">Cuota</option>
-                        <option value="Exento">Exento</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label class="text-xs text-gray-500">Tasa/Cuota (%)</label>
-                      <input type="number" step="0.0001" class="form-input w-full" x-model.number="imp.tasa">
-                    </div>
-                  </div>
-
-                  <div class="flex justify-between items-center">
-                    <div class="text-xs text-gray-500">Base: <span x-text="money(baseRow(form.conceptos[modalImpuestos.idx]))"></span></div>
-                    <button type="button" class="btn-xs text-red-500 hover:text-red-600" @click="eliminarImpuesto(i)">Eliminar</button>
-                  </div>
-                </div>
-              </template>
-
-              <button type="button" class="btn-sm bg-gray-100 dark:bg-gray-700 hover:opacity-90" @click="agregarImpuesto">+ Agregar impuesto</button>
             </div>
 
             <div class="flex justify-end gap-2 mt-4">
-              <button type="button" class="btn bg-gray-100 dark:bg-gray-700" @click="cerrarImpuestos()">Cancelar</button>
-              <button type="button" class="btn bg-violet-600 hover:bg-violet-700 text-white" @click="guardarImpuestos()">Guardar</button>
+                <button type="button" class="btn bg-gray-100 dark:bg-gray-700" @click="open=false">Cancelar</button>
+                <button type="submit" class="btn bg-violet-600 hover:bg-violet-700 text-white">Guardar</button>
             </div>
-          </div>
+            </form>
+        </template>
+
+        <template x-if="!form.cliente_id">
+            <div class="text-sm text-gray-500">Primero selecciona un cliente.</div>
+        </template>
         </div>
-      </template>
     </div>
+    </div>
+
+
+    {{-- MODAL LATERAL: IMPUESTOS POR CONCEPTO --}}
+    <div x-data="{open:false}"
+        x-on:open-impuestos.window="open=true; modalImpuestos.idx = $event.detail.idx; cargarImpuestosEdit()"
+        x-show="open"
+        x-transition.opacity
+        class="fixed inset-0 z-40"
+        style="display:none">
+
+    <div class="absolute inset-0 bg-black/40" @click="open=false"></div>
+
+    <div class="absolute right-0 top-0 h-full w-full max-w-lg bg-white dark:bg-gray-900 shadow-xl
+                z-50 overflow-y-auto"
+        @click.stop
+        x-transition:enter="transform transition ease-in-out duration-200"
+        x-transition:enter-start="translate-x-full"
+        x-transition:enter-end="translate-x-0"
+        x-transition:leave="transform transition ease-in-out duration-200"
+        x-transition:leave-start="translate-x-0"
+        x-transition:leave-end="translate-x-full"
+        @keydown.escape.window="open=false">
+
+        <div class="p-4">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">
+            Impuestos del concepto #<span x-text="(modalImpuestos.idx+1)"></span>
+            </h3>
+            <button class="text-gray-500 hover:text-gray-700" @click="open=false">✕</button>
+        </div>
+
+        <div class="space-y-2">
+            <template x-for="(imp, i) in impuestosEdit" :key="imp.uid">
+            <div class="border rounded-lg p-3 space-y-2">
+                <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-xs text-gray-500">Tipo</label>
+                    <select class="form-select w-full" x-model="imp.tipo">
+                    <option value="T">Traslado</option>
+                    <option value="R">Retención</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500">Impuesto</label>
+                    <select class="form-select w-full" x-model="imp.impuesto">
+                    <option value="IVA">IVA</option>
+                    <option value="ISR">ISR</option>
+                    <option value="IEPS">IEPS</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500">Factor</label>
+                    <select class="form-select w-full" x-model="imp.factor">
+                    <option value="Tasa">Tasa</option>
+                    <option value="Cuota">Cuota</option>
+                    <option value="Exento">Exento</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500">Tasa/Cuota (%)</label>
+                    <input type="number" step="0.0001" class="form-input w-full" x-model.number="imp.tasa">
+                </div>
+                </div>
+
+                <div class="flex justify-between items-center">
+                <div class="text-xs text-gray-500">
+                    Base: <span x-text="money(baseRow(form.conceptos[modalImpuestos.idx]))"></span>
+                </div>
+                <button type="button" class="btn-xs text-red-500 hover:text-red-600" @click="eliminarImpuesto(i)">Eliminar</button>
+                </div>
+            </div>
+            </template>
+
+            <button type="button" class="btn-sm bg-gray-100 dark:bg-gray-700 hover:opacity-90" @click="agregarImpuesto">+ Agregar impuesto</button>
+        </div>
+
+        <div class="flex justify-end gap-2 mt-4">
+            <button type="button" class="btn bg-gray-100 dark:bg-gray-700" @click="open=false">Cancelar</button>
+            <button type="button" class="btn bg-violet-600 hover:bg-violet-700 text-white" @click="guardarImpuestos(); open=false">Guardar</button>
+        </div>
+        </div>
+    </div>
+    </div>
+
 
     {{-- MODAL LATERAL: SELECTOR de CLAVES SAT --}}
-    <div x-data x-on:open-sat.window="
-      satModal.open = true; satModal.idx = $event.detail.idx; satModal.tipo = $event.detail.tipo; satModal.q = ''; satModal.items=[];
-    ">
-      <template x-if="satModal.open">
-        <div class="fixed inset-0 z-40 flex">
-          <div class="fixed inset-0 bg-black/40" @click="satModal.open=false"></div>
-          <div class="ml-auto h-full w-full max-w-xl bg-white dark:bg-gray-900 shadow-xl p-4 overflow-y-auto">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="text-lg font-semibold" x-text="satModal.tipo==='prodserv' ? 'Buscar Clave ProdServ' : 'Buscar Clave Unidad'"></h3>
-              <button class="text-gray-500 hover:text-gray-700" @click="satModal.open=false">✕</button>
-            </div>
+    <div x-data="{open:false}"
+        x-on:open-sat.window="open=true; satModal.idx = $event.detail.idx; satModal.tipo = $event.detail.tipo; satModal.q=''; satModal.items=[];"
+        x-show="open"
+        x-transition.opacity
+        class="fixed inset-0 z-40"
+        style="display:none">
 
-            <div class="flex gap-2 mb-3">
-              <input class="form-input w-full" placeholder="Escribe al menos 3 caracteres" x-model="satModal.q"
-                     @input.debounce.300ms="buscarSat()">
-            </div>
+    <div class="absolute inset-0 bg-black/40" @click="open=false"></div>
 
-            <div class="border rounded-lg divide-y">
-              <template x-for="it in satModal.items" :key="it.id">
-                <button type="button" class="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-800"
-                        @click="aplicarSat(it)">
-                  <div class="font-medium" x-text="`${it.clave} — ${it.descripcion}`"></div>
-                </button>
-              </template>
-              <div class="p-3 text-sm text-gray-500" x-show="satModal.items.length===0">Sin resultados</div>
-            </div>
+    <div class="absolute right-0 top-0 h-full w-full max-w-xl bg-white dark:bg-gray-900 shadow-xl
+                z-50 overflow-y-auto"
+        @click.stop
+        x-transition:enter="transform transition ease-in-out duration-200"
+        x-transition:enter-start="translate-x-full"
+        x-transition:enter-end="translate-x-0"
+        x-transition:leave="transform transition ease-in-out duration-200"
+        x-transition:leave-start="translate-x-0"
+        x-transition:leave-end="translate-x-full"
+        @keydown.escape.window="open=false">
 
-            <div class="flex justify-end mt-4">
-              <button type="button" class="btn bg-gray-100 dark:bg-gray-700" @click="satModal.open=false">Cerrar</button>
-            </div>
-          </div>
+        <div class="p-4">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold" x-text="satModal.tipo==='prodserv' ? 'Buscar Clave ProdServ' : 'Buscar Clave Unidad'"></h3>
+            <button class="text-gray-500 hover:text-gray-700" @click="open=false">✕</button>
         </div>
-      </template>
+
+        <div class="flex gap-2 mb-3">
+            <input class="form-input w-full" placeholder="Escribe al menos 3 caracteres" x-model="satModal.q"
+                @input.debounce.300ms="buscarSat()">
+        </div>
+
+        <div class="border rounded-lg divide-y">
+            <template x-for="it in satModal.items" :key="it.id">
+            <button type="button" class="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    @click="aplicarSat(it); open=false">
+                <div class="font-medium" x-text="`${it.clave} — ${it.descripcion}`"></div>
+            </button>
+            </template>
+            <div class="p-3 text-sm text-gray-500" x-show="satModal.items.length===0">Sin resultados</div>
+        </div>
+
+        <div class="flex justify-end mt-4">
+            <button type="button" class="btn bg-gray-100 dark:bg-gray-700" @click="open=false">Cerrar</button>
+        </div>
+        </div>
     </div>
+    </div>
+
 
   </div> {{-- x-data --}}
 </div>
@@ -556,11 +610,11 @@
     // ----- comprobante -----
     onTipoComprobanteChange(){ this.pedirSiguienteFolio(); },
     pedirSiguienteFolio(){
-      const url = `${opts.apiSeriesNext}?tipo=${encodeURIComponent(this.form.tipo_comprobante)}&rfc=${encodeURIComponent(opts.rfcUsuarioId)}`;
-      fetch(url).then(r=>r.json()).then(j=>{
+    const url = `${opts.apiSeriesNext}?tipo=${encodeURIComponent(this.form.tipo_comprobante)}`;
+    fetch(url).then(r=>r.json()).then(j=>{
         this.form.serie = j.serie || '';
         this.form.folio = j.folio || '';
-      }).catch(()=>{});
+    }).catch(()=>{});
     },
     clampFecha(){
       if (!this.form.fecha) { this.form.fecha = this.maxFecha; return; }
