@@ -51,7 +51,10 @@
       maxFecha: "{{ $maxFecha }}",
       apiSeriesNext: "{{ url('/api/series/next') }}",
       apiProductosBuscar: "{{ url('/api/productos/buscar') }}",
+      apiSatProdServ: "{{ url('/api/sat/clave-prod-serv') }}",
+      apiSatUnidad: "{{ url('/api/sat/clave-unidad') }}",
       routeClienteUpdateBase: "{{ url('/catalogos/clientes') }}",
+      routePreview: "{{ route('facturas.preview') }}",
       csrf: "{{ csrf_token() }}"
     })'
     class="space-y-6"
@@ -63,15 +66,12 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {{-- Tipo comprobante --}}
+        {{-- Tipo comprobante (solo I/E) --}}
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de comprobante</label>
           <select x-model="form.tipo_comprobante" @change="onTipoComprobanteChange" class="form-select w-full">
-            <option value="I">Ingreso (Factura/Honorarios/Arrendamiento)</option>
-            <option value="E">Egreso (Nota de crédito)</option>
-            <option value="T">Traslado</option>
-            <option value="N">Nómina</option>
-            <option value="P">Pago</option>
+            <option value="I">Ingreso</option>
+            <option value="E">Egreso</option>
           </select>
         </div>
 
@@ -106,23 +106,21 @@
           </select>
         </div>
 
-        {{-- Forma de pago (select) --}}
+        {{-- Forma de pago --}}
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Forma de pago</label>
           <select x-model="form.forma_pago" class="form-select w-full">
-            <option value="01">01 - Efectivo</option>
-            <option value="02">02 - Cheque</option>
-            <option value="03">03 - Transferencia</option>
-            <option value="04">04 - Tarjeta de crédito</option>
-            <option value="28">28 - Tarjeta de débito</option>
-            <option value="99">99 - Por definir</option>
+            <option value="03">Transferencia electrónica</option>
+            <option value="01">Efectivo</option>
+            <option value="04">Tarjeta de crédito</option>
+            <option value="28">Tarjeta de débito</option>
           </select>
         </div>
 
-        {{-- Comentarios PDF (textarea) --}}
+        {{-- Comentarios para PDF --}}
         <div class="md:col-span-3">
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Comentarios en PDF</label>
-          <textarea x-model="form.comentarios_pdf" rows="3" class="form-textarea w-full" placeholder="Notas visibles en el PDF"></textarea>
+          <textarea rows="2" class="form-input w-full" x-model="form.comentarios_pdf" placeholder="Comentarios o notas visibles en el PDF"></textarea>
         </div>
       </div>
     </div>
@@ -131,21 +129,30 @@
     <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Cliente</h2>
-        <div class="flex items-center gap-2">
-          <div class="w-64">
-            <select x-model.number="form.cliente_id" @change="onClienteChange" class="form-select w-full">
-              <option value="">— Selecciona —</option>
-              <template x-for="c in clientes" :key="c.id">
-                <option :value="c.id" x-text="`${c.razon_social} — ${c.rfc}`"></option>
-              </template>
-            </select>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Selecciona cliente</label>
+          <div class="flex gap-2">
+            <div class="flex-1">
+              <select x-model.number="form.cliente_id" @change="onClienteChange" class="form-select w-full">
+                <option value="">— Selecciona —</option>
+                <template x-for="c in clientes" :key="c.id">
+                  <option :value="c.id" x-text="`${c.razon_social} — ${c.rfc}`"></option>
+                </template>
+              </select>
+            </div>
+            <button type="button" class="btn-sm bg-violet-500 hover:bg-violet-600 text-white"
+                    @click="$dispatch('open-modal','modalEditarCliente')">
+              Actualizar
+            </button>
           </div>
-          <button type="button" class="btn-sm bg-violet-500 hover:bg-violet-600 text-white" :disabled="!form.cliente_id" @click="$dispatch('open-modal','modalEditarCliente')">Actualizar</button>
         </div>
       </div>
 
-      {{-- Labels limpios (sin card dentro de card) --}}
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-1 gap-x-6 text-sm">
+      {{-- Datos del cliente en texto limpio --}}
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-1 gap-x-6 text-sm mt-3">
         <div><span class="text-gray-400">Razón social:</span> <span class="font-medium" x-text="clienteSel.razon_social || '—'"></span></div>
         <div><span class="text-gray-400">RFC:</span> <span class="font-medium" x-text="clienteSel.rfc || '—'"></span></div>
         <div><span class="text-gray-400">Correo:</span> <span class="font-medium" x-text="clienteSel.email || '—'"></span></div>
@@ -164,14 +171,35 @@
     <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Conceptos</h2>
-        <button type="button" class="btn-sm bg-gray-900 dark:bg-white dark:text-gray-900 text-white hover:opacity-90" @click="agregarConcepto">Agregar concepto</button>
+
+        {{-- Buscador externo de productos (saca el buscador de la tabla) --}}
+        <div class="flex items-end gap-2">
+          <div>
+            <label class="block text-xs text-gray-500">Buscar producto</label>
+            <input type="text" class="form-input w-72" placeholder="Código o descripción"
+                   x-model="buscaProd.query" @input.debounce.300ms="buscarProductoGlobal">
+          </div>
+          <div class="relative">
+            <label class="block text-xs text-gray-500">Resultados</label>
+            <select size="1" class="form-select w-72"
+                    x-model.number="buscaProd.selectedId"
+                    @change="agregarProductoDesdeBuscador">
+              <option value="">— Selecciona —</option>
+              <template x-for="p in buscaProd.suggestions" :key="p.id">
+                <option :value="p.id" x-text="`${p.clave || ''} ${p.descripcion}`"></option>
+              </template>
+            </select>
+          </div>
+          <button type="button" class="btn-sm bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90" @click="agregarConcepto">
+            Agregar concepto vacío
+          </button>
+        </div>
       </div>
 
       <div class="overflow-x-auto">
         <table class="table-auto w-full text-sm">
           <thead class="text-xs uppercase text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700/60">
             <tr>
-              <th class="px-2 py-2 text-left">Buscar</th>
               <th class="px-2 py-2 text-left">Descripción</th>
               <th class="px-2 py-2 text-left">Clave ProdServ</th>
               <th class="px-2 py-2 text-left">Clave Unidad</th>
@@ -186,85 +214,89 @@
           </thead>
           <tbody>
             <template x-for="(row, idx) in form.conceptos" :key="row.uid">
-              <tr class="border-b border-gray-100 dark:border-gray-700/40 align-top">
-                {{-- Buscar (autocompletar) --}}
-                <td class="px-2 py-2 w-56 relative">
-                  <input type="text" class="form-input w-full" placeholder="Código o texto"
-                         x-model.debounce.400ms="row.query" @input="buscarProducto(idx)">
-                  <template x-if="row.suggestions && row.suggestions.length">
-                    <div class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow">
-                      <ul class="max-h-48 overflow-auto">
-                        <template x-for="(s, i) in row.suggestions" :key="i">
-                          <li>
-                            <button type="button" class="w-full text-left px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                    @click="aplicarSugerencia(idx, s)">
-                              <div class="text-xs font-medium" x-text="s.descripcion"></div>
-                              <div class="text-[10px] text-gray-500" x-text="`ProdServ: ${s.clave_prod_serv} · ClaveUnidad: ${s.clave_unidad}`"></div>
-                            </button>
-                          </li>
-                        </template>
-                      </ul>
-                    </div>
-                  </template>
-                </td>
-
+              <tr class="border-b border-gray-100 dark:border-gray-700/50">
                 {{-- Descripción --}}
-                <td class="px-2 py-2 w-[28rem]">
-                  <input type="text" class="form-input w-full" x-model="row.descripcion" placeholder="Descripción">
+                <td class="px-2 py-2">
+                  <textarea rows="1" class="form-input w-full" x-model="row.descripcion"></textarea>
                 </td>
 
-                {{-- Claves compactas --}}
-                <td class="px-2 py-2 w-28">
-                  <input type="text" class="form-input w-full text-center" x-model="row.clave_prod_serv" maxlength="8">
-                </td>
-                <td class="px-2 py-2 w-24">
-                  <input type="text" class="form-input w-full text-center" x-model="row.clave_unidad" maxlength="4">
-                </td>
-                <td class="px-2 py-2 w-24">
-                  <input type="text" class="form-input w-full text-center" x-model="row.unidad" maxlength="10">
+                {{-- Clave ProdServ (editable y con selector en modal) --}}
+                <td class="px-2 py-2 w-56">
+                  <div class="flex gap-2 items-center">
+                    <input type="text" class="form-input w-28" x-model="row.clave_prod_serv" placeholder="01010101">
+                    <button type="button" class="btn-xs bg-gray-100 dark:bg-gray-700 hover:opacity-90"
+                      @click="$dispatch('open-sat', { idx, tipo: 'prodserv' })">
+                      Cambiar
+                    </button>
+                  </div>
                 </td>
 
-                {{-- Números --}}
+                {{-- Clave Unidad (editable y con selector en modal) --}}
+                <td class="px-2 py-2 w-48">
+                  <div class="flex gap-2 items-center">
+                    <input type="text" class="form-input w-24" x-model="row.clave_unidad" placeholder="H87">
+                    <button type="button" class="btn-xs bg-gray-100 dark:bg-gray-700 hover:opacity-90"
+                      @click="$dispatch('open-sat', { idx, tipo: 'unidad' })">
+                      Cambiar
+                    </button>
+                  </div>
+                </td>
+
+                {{-- Unidad --}}
+                <td class="px-2 py-2 w-36">
+                  <input type="text" class="form-input w-full" x-model="row.unidad" placeholder="PZA, KG, H87…">
+                </td>
+
+                {{-- Cantidad --}}
                 <td class="px-2 py-2 w-24">
                   <input type="number" step="0.001" class="form-input w-full text-right" x-model.number="row.cantidad" @input="recalcularTotales">
                 </td>
+
+                {{-- Precio --}}
                 <td class="px-2 py-2 w-28">
                   <input type="number" step="0.01" class="form-input w-full text-right" x-model.number="row.precio" @input="recalcularTotales">
                 </td>
+
+                {{-- Descuento --}}
                 <td class="px-2 py-2 w-24">
                   <input type="number" step="0.01" class="form-input w-full text-right" x-model.number="row.descuento" @input="recalcularTotales">
                 </td>
 
-                {{-- Impuestos (en esta iteración, botón placeholder) --}}
+                {{-- Impuestos (modal lateral) --}}
                 <td class="px-2 py-2 w-32 text-right">
                   <button type="button" class="btn-xs bg-violet-500 hover:bg-violet-600 text-white"
                           @click="$dispatch('open-impuestos', { idx })">
                     Editar
                   </button>
+                  <div class="text-xs text-gray-500" x-show="(row.impuestos || []).length > 0" x-text="resumenImpuestos(row)"></div>
                 </td>
 
                 {{-- Importe --}}
-                <td class="px-2 py-2 w-28 text-right" x-text="money(calcImporte(row))"></td>
+                <td class="px-2 py-2 w-28 text-right" x-text="money(importeRow(row))"></td>
 
-                {{-- Quitar --}}
+                {{-- eliminar --}}
                 <td class="px-2 py-2 w-10 text-right">
-                  <button type="button" class="text-red-500 hover:text-red-600" @click="eliminarConcepto(idx)">
-                    &times;
-                  </button>
+                  <button type="button" class="btn-xs text-red-500 hover:text-red-600" @click="eliminarConcepto(idx)">✕</button>
                 </td>
               </tr>
             </template>
           </tbody>
         </table>
       </div>
+    </div>
 
-      {{-- Totales --}}
-      <div class="flex justify-end mt-4">
+    {{-- TOTALES --}}
+    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Totales</h2>
+      </div>
+      <div class="flex items-center justify-between">
+        <div class="text-sm text-gray-500 dark:text-gray-400">Los totales se actualizan automáticamente.</div>
         <div class="w-full max-w-sm space-y-1 text-sm">
           <div class="flex justify-between"><span class="text-gray-500">Subtotal</span><span x-text="money(totales.subtotal)"></span></div>
           <div class="flex justify-between"><span class="text-gray-500">Descuento</span><span x-text="money(totales.descuento)"></span></div>
           <div class="flex justify-between"><span class="text-gray-500">Impuestos</span><span x-text="money(totales.impuestos)"></span></div>
-          <div class="flex justify-between font-semibold text-gray-800 dark:text-gray-100"><span>Total</span><span x-text="money(totales.total)"></span></div>
+          <div class="flex justify-between font-semibold text-gray-700 dark:text-gray-100"><span>Total</span><span x-text="money(totales.total)"></span></div>
         </div>
       </div>
     </div>
@@ -273,7 +305,7 @@
     <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Documentos relacionados</h2>
-        <button type="button" class="btn-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:opacity-90" @click="agregarRelacionado">Agregar</button>
+        <button type="button" class="btn-sm bg-gray-100 dark:bg-gray-700 hover:opacity-90" @click="agregarRelacionado">Agregar</button>
       </div>
 
       <div class="space-y-2">
@@ -297,12 +329,166 @@
 
     {{-- ACCIONES --}}
     <div class="flex items-center justify-end gap-3">
-      <button type="button" class="btn border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" @click="previewFactura">Visualizar</button>
-      <button type="button" class="btn bg-gray-900 dark:bg-white dark:text-gray-900 text-white hover:opacity-90" @click="guardarBorrador">Guardar (prefactura)</button>
-      <button type="button" class="btn bg-violet-600 hover:bg-violet-700 text-white" @click="timbrarFactura">Timbrar</button>
+      <button type="button" class="btn bg-gray-100 dark:bg-gray-700 hover:opacity-90" @click="guardarBorrador">Guardar borrador</button>
+      <button type="button" class="btn bg-violet-600 hover:bg-violet-700 text-white" @click="previsualizar">Previsualizar</button>
     </div>
 
-  </div>{{-- /x-data --}}
+    {{-- FORMULARIO OCULTO PARA PREVIEW (abre en la misma pestaña, overlay en servidor) --}}
+    <form x-ref="previewForm" :action="opts.routePreview" method="POST" class="hidden">
+      <input type="hidden" name="_token" :value="opts.csrf">
+      <input type="hidden" name="payload" :value="JSON.stringify(form)">
+    </form>
+
+    {{-- MODAL LATERAL: EDITAR CLIENTE --}}
+    <div x-data x-on:open-modal.window="if($event.detail==='modalEditarCliente') $refs.drawerCliente.classList.remove('hidden')"
+         class="relative">
+      <div x-ref="drawerCliente" class="hidden fixed inset-0 z-40 flex">
+        <div class="fixed inset-0 bg-black/40" @click="$refs.drawerCliente.classList.add('hidden')"></div>
+        <div class="ml-auto h-full w-full max-w-lg bg-white dark:bg-gray-900 shadow-xl p-4 overflow-y-auto">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">Editar cliente</h3>
+            <button class="text-gray-500 hover:text-gray-700" @click="$refs.drawerCliente.classList.add('hidden')">✕</button>
+          </div>
+
+          <template x-if="clienteSel && form.cliente_id">
+            <form @submit.prevent="submitEditarCliente">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="text-xs text-gray-500">Razón social</label>
+                  <input class="form-input w-full" x-model="clienteEdit.razon_social">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500">RFC</label>
+                  <input class="form-input w-full" x-model="clienteEdit.rfc">
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="text-xs text-gray-500">Correo</label>
+                  <input type="email" class="form-input w-full" x-model="clienteEdit.email">
+                </div>
+                <div><label class="text-xs text-gray-500">Calle</label><input class="form-input w-full" x-model="clienteEdit.calle"></div>
+                <div><label class="text-xs text-gray-500">No. ext</label><input class="form-input w-full" x-model="clienteEdit.no_ext"></div>
+                <div><label class="text-xs text-gray-500">No. int</label><input class="form-input w-full" x-model="clienteEdit.no_int"></div>
+                <div><label class="text-xs text-gray-500">Colonia</label><input class="form-input w-full" x-model="clienteEdit.colonia"></div>
+                <div><label class="text-xs text-gray-500">Localidad</label><input class="form-input w-full" x-model="clienteEdit.localidad"></div>
+                <div><label class="text-xs text-gray-500">Estado</label><input class="form-input w-full" x-model="clienteEdit.estado"></div>
+                <div><label class="text-xs text-gray-500">CP</label><input class="form-input w-full" x-model="clienteEdit.codigo_postal"></div>
+                <div class="sm:col-span-2"><label class="text-xs text-gray-500">País</label><input class="form-input w-full" x-model="clienteEdit.pais"></div>
+              </div>
+
+              <div class="flex justify-end gap-2 mt-4">
+                <button type="button" class="btn bg-gray-100 dark:bg-gray-700" @click="$refs.drawerCliente.classList.add('hidden')">Cancelar</button>
+                <button type="submit" class="btn bg-violet-600 hover:bg-violet-700 text-white">Guardar</button>
+              </div>
+            </form>
+          </template>
+          <template x-if="!form.cliente_id">
+            <div class="text-sm text-gray-500">Primero selecciona un cliente.</div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    {{-- MODAL LATERAL: IMPUESTOS POR CONCEPTO --}}
+    <div x-data x-on:open-impuestos.window="
+      modalImpuestos.open = true; modalImpuestos.idx = $event.detail.idx; cargarImpuestosEdit()">
+      <template x-if="modalImpuestos.open">
+        <div class="fixed inset-0 z-40 flex">
+          <div class="fixed inset-0 bg-black/40" @click="cerrarImpuestos()"></div>
+          <div class="ml-auto h-full w-full max-w-lg bg-white dark:bg-gray-900 shadow-xl p-4 overflow-y-auto">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold">Impuestos del concepto #<span x-text="(modalImpuestos.idx+1)"></span></h3>
+              <button class="text-gray-500 hover:text-gray-700" @click="cerrarImpuestos()">✕</button>
+            </div>
+
+            <div class="space-y-2">
+              <template x-for="(imp, i) in impuestosEdit" :key="imp.uid">
+                <div class="border rounded-lg p-3 space-y-2">
+                  <div class="grid grid-cols-2 gap-2">
+                    <div>
+                      <label class="text-xs text-gray-500">Tipo</label>
+                      <select class="form-select w-full" x-model="imp.tipo">
+                        <option value="T">Traslado</option>
+                        <option value="R">Retención</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="text-xs text-gray-500">Impuesto</label>
+                      <select class="form-select w-full" x-model="imp.impuesto">
+                        <option value="IVA">IVA</option>
+                        <option value="ISR">ISR</option>
+                        <option value="IEPS">IEPS</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="text-xs text-gray-500">Factor</label>
+                      <select class="form-select w-full" x-model="imp.factor">
+                        <option value="Tasa">Tasa</option>
+                        <option value="Cuota">Cuota</option>
+                        <option value="Exento">Exento</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="text-xs text-gray-500">Tasa/Cuota (%)</label>
+                      <input type="number" step="0.0001" class="form-input w-full" x-model.number="imp.tasa">
+                    </div>
+                  </div>
+
+                  <div class="flex justify-between items-center">
+                    <div class="text-xs text-gray-500">Base: <span x-text="money(baseRow(form.conceptos[modalImpuestos.idx]))"></span></div>
+                    <button type="button" class="btn-xs text-red-500 hover:text-red-600" @click="eliminarImpuesto(i)">Eliminar</button>
+                  </div>
+                </div>
+              </template>
+
+              <button type="button" class="btn-sm bg-gray-100 dark:bg-gray-700 hover:opacity-90" @click="agregarImpuesto">+ Agregar impuesto</button>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-4">
+              <button type="button" class="btn bg-gray-100 dark:bg-gray-700" @click="cerrarImpuestos()">Cancelar</button>
+              <button type="button" class="btn bg-violet-600 hover:bg-violet-700 text-white" @click="guardarImpuestos()">Guardar</button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    {{-- MODAL LATERAL: SELECTOR de CLAVES SAT --}}
+    <div x-data x-on:open-sat.window="
+      satModal.open = true; satModal.idx = $event.detail.idx; satModal.tipo = $event.detail.tipo; satModal.q = ''; satModal.items=[];
+    ">
+      <template x-if="satModal.open">
+        <div class="fixed inset-0 z-40 flex">
+          <div class="fixed inset-0 bg-black/40" @click="satModal.open=false"></div>
+          <div class="ml-auto h-full w-full max-w-xl bg-white dark:bg-gray-900 shadow-xl p-4 overflow-y-auto">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold" x-text="satModal.tipo==='prodserv' ? 'Buscar Clave ProdServ' : 'Buscar Clave Unidad'"></h3>
+              <button class="text-gray-500 hover:text-gray-700" @click="satModal.open=false">✕</button>
+            </div>
+
+            <div class="flex gap-2 mb-3">
+              <input class="form-input w-full" placeholder="Escribe al menos 3 caracteres" x-model="satModal.q"
+                     @input.debounce.300ms="buscarSat()">
+            </div>
+
+            <div class="border rounded-lg divide-y">
+              <template x-for="it in satModal.items" :key="it.id">
+                <button type="button" class="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        @click="aplicarSat(it)">
+                  <div class="font-medium" x-text="`${it.clave} — ${it.descripcion}`"></div>
+                </button>
+              </template>
+              <div class="p-3 text-sm text-gray-500" x-show="satModal.items.length===0">Sin resultados</div>
+            </div>
+
+            <div class="flex justify-end mt-4">
+              <button type="button" class="btn bg-gray-100 dark:bg-gray-700" @click="satModal.open=false">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+  </div> {{-- x-data --}}
 </div>
 @endsection
 
@@ -311,7 +497,7 @@
   window.facturaForm = (opts) => ({
     // ----- estado -----
     form: {
-      tipo_comprobante: 'I', // default INgreso
+      tipo_comprobante: 'I', // default
       serie: '',
       folio: '',
       fecha: opts.maxFecha, // por defecto "ahora"
@@ -322,15 +508,42 @@
       conceptos: [],
       relacionados: [],
     },
-    clientes: Array.isArray(opts.clientes) ? opts.clientes : [],
+    clientes: opts.clientes || [],
     clienteSel: {},
-    minFecha: opts.minFecha,
-    maxFecha: opts.maxFecha,
+    clienteEdit: {},
+
+    buscaProd: { query: '', suggestions: [], selectedId: '' },
+
     totales: { subtotal: 0, descuento: 0, impuestos: 0, total: 0 },
 
+    modalImpuestos: { open:false, idx:-1 },
+    impuestosEdit: [],
+    satModal: { open:false, idx:-1, tipo:'prodserv', q:'', items:[] },
+
     // ----- helpers -----
-    money(n){ return new Intl.NumberFormat('es-MX',{style:'currency', currency:'MXN'}).format(Number(n||0)); },
-    uid(){ return (crypto.randomUUID?.() || String(Date.now()+Math.random())); },
+    uid(){ return Math.random().toString(36).slice(2); },
+    money(n){ n = Number(n||0); return n.toLocaleString('es-MX',{style:'currency',currency:'MXN'}); },
+
+    baseRow(r){
+      const sub = Number(r.cantidad||0) * Number(r.precio||0);
+      const des = Number(r.descuento||0);
+      return Math.max(sub - des, 0);
+    },
+    importeRow(r){
+      const base = this.baseRow(r);
+      let imp = 0;
+      for (const i of (r.impuestos||[])) {
+        if (i.factor==='Exento') continue;
+        const tasa = Number(i.tasa||0)/100;
+        const monto = base * tasa;
+        imp += (i.tipo==='R' ? -monto : monto);
+      }
+      return base + imp;
+    },
+    resumenImpuestos(r){
+      const xs = (r.impuestos||[]).map(i => `${i.tipo==='R'?'Ret':'Tras'} ${i.impuesto} ${i.factor==='Exento'?'0%':(Number(i.tasa||0).toFixed(2)+'%')}`);
+      return xs.join(', ');
+    },
 
     // ----- init -----
     init(){
@@ -359,14 +572,35 @@
     onClienteChange(){
       const c = this.clientes.find(x => Number(x.id) === Number(this.form.cliente_id));
       this.clienteSel = c || {};
+      this.clienteEdit = JSON.parse(JSON.stringify(this.clienteSel || {}));
+    },
+    async submitEditarCliente(){
+      if (!this.form.cliente_id) return;
+      const url = `${opts.routeClienteUpdateBase}/${this.form.cliente_id}`;
+      const body = new URLSearchParams();
+      body.append('_token', opts.csrf);
+      body.append('_method','PUT');
+      for (const [k,v] of Object.entries(this.clienteEdit)) body.append(k, v ?? '');
+      const r = await fetch(url, { method:'POST', headers:{'Accept':'application/json'}, body });
+      if (!r.ok) { alert('No se pudo actualizar el cliente'); return; }
+      const j = await r.json().catch(()=>null);
+      if (j && j.id){
+        // actualiza en la lista local
+        const i = this.clientes.findIndex(x => Number(x.id)===Number(j.id));
+        if (i>=0) this.clientes.splice(i,1,j);
+        this.onClienteChange();
+      } else {
+        // si el controlador respondió redirect/html, al menos refrescamos la UI local
+        this.onClienteChange();
+      }
+      // cierra drawer
+      document.querySelector('[x-ref=drawerCliente]')?.classList.add('hidden');
     },
 
     // ----- conceptos -----
     agregarConcepto(){
       this.form.conceptos.push({
         uid: this.uid(),
-        query: '',
-        suggestions: [],
         descripcion: '',
         clave_prod_serv: '',
         clave_unidad: '',
@@ -374,7 +608,7 @@
         cantidad: 1,
         precio: 0,
         descuento: 0,
-        impuestos: [], // pendiente UI impuestos
+        impuestos: [],
       });
       this.recalcularTotales();
     },
@@ -382,64 +616,111 @@
       this.form.conceptos.splice(i,1);
       this.recalcularTotales();
     },
-    buscarProducto(idx){
-      const row = this.form.conceptos[idx];
-      if (!row || !row.query || row.query.length < 2) { row.suggestions = []; return; }
-      const url = `${opts.apiProductosBuscar}?q=${encodeURIComponent(row.query)}&rfc=${encodeURIComponent(opts.rfcUsuarioId)}`;
-      fetch(url).then(r=>r.json()).then(list=>{
-        row.suggestions = (list || []).slice(0,8);
-      }).catch(()=>{ row.suggestions = []; });
+
+    // buscador externo
+    async buscarProductoGlobal(){
+      const q = (this.buscaProd.query||'').trim();
+      if (q.length < 2) { this.buscaProd.suggestions = []; return; }
+      const url = `${opts.apiProductosBuscar}?q=${encodeURIComponent(q)}&rfc=${encodeURIComponent(opts.rfcUsuarioId)}`;
+      const r = await fetch(url);
+      const list = await r.json().catch(()=>[]);
+      this.buscaProd.suggestions = list || [];
     },
-    aplicarSugerencia(idx, s){
-      const row = this.form.conceptos[idx];
-      if (!row) return;
-      row.descripcion     = s.descripcion ?? row.descripcion;
-      row.clave_prod_serv = s.clave_prod_serv ?? row.clave_prod_serv;
-      row.clave_unidad    = s.clave_unidad ?? row.clave_unidad;
-      row.unidad          = s.unidad ?? row.unidad;
-      if (typeof s.precio !== 'undefined') row.precio = Number(s.precio);
-      row.query = '';
-      row.suggestions = [];
+    agregarProductoDesdeBuscador(){
+      const id = Number(this.buscaProd.selectedId||0);
+      const p = (this.buscaProd.suggestions||[]).find(x => Number(x.id)===id);
+      if (!p) return;
+      const row = {
+        uid: this.uid(),
+        descripcion: p.descripcion || '',
+        clave_prod_serv: p.clave_prod_serv || '',
+        clave_unidad: p.clave_unidad || '',
+        unidad: p.unidad || '',
+        cantidad: 1,
+        precio: Number(p.precio || 0),
+        descuento: 0,
+        impuestos: [],
+      };
+      this.form.conceptos.push(row);
+      this.buscaProd.selectedId = '';
       this.recalcularTotales();
     },
-    calcImporte(row){
-      const subt = Number(row.cantidad||0) * Number(row.precio||0);
-      const desc = Number(row.descuento||0);
-      return Math.max(0, subt - desc);
+
+    // impuestos modal
+    cargarImpuestosEdit(){
+      const idx = this.modalImpuestos.idx;
+      const row = this.form.conceptos[idx]; if (!row) return;
+      this.impuestosEdit = (row.impuestos || []).map(i => ({...i})) // clone
+      if (!this.impuestosEdit.length) this.agregarImpuesto();
     },
+    agregarImpuesto(){
+      this.impuestosEdit.push({ uid:this.uid(), tipo:'T', impuesto:'IVA', factor:'Tasa', tasa:16 });
+    },
+    eliminarImpuesto(i){ this.impuestosEdit.splice(i,1); },
+    guardarImpuestos(){
+      const idx = this.modalImpuestos.idx;
+      if (idx<0) return;
+      // limpieza simple: tasa >=0
+      for (const it of this.impuestosEdit){ it.tasa = Math.max(Number(it.tasa||0), 0); }
+      this.form.conceptos[idx].impuestos = this.impuestosEdit.map(i => ({...i}));
+      this.cerrarImpuestos();
+      this.recalcularTotales();
+    },
+    cerrarImpuestos(){ this.modalImpuestos.open=false; this.modalImpuestos.idx=-1; this.impuestosEdit = []; },
+
+    // SAT modal
+    async buscarSat(){
+      const q = (this.satModal.q||'').trim();
+      if (q.length < 3) { this.satModal.items = []; return; }
+      const isProd = this.satModal.tipo === 'prodserv';
+      const url = (isProd ? opts.apiSatProdServ : opts.apiSatUnidad) + `?q=${encodeURIComponent(q)}`;
+      const r = await fetch(url);
+      const list = await r.json().catch(()=>[]);
+      this.satModal.items = list || [];
+    },
+    aplicarSat(it){
+      const idx = this.satModal.idx;
+      const row = this.form.conceptos[idx]; if (!row) return;
+      if (this.satModal.tipo==='prodserv') row.clave_prod_serv = it.clave || '';
+      else if (this.satModal.tipo==='unidad'){ row.clave_unidad = it.clave || ''; row.unidad = it.unidad || row.unidad; }
+      this.satModal.open=false;
+    },
+
+    // totales
     recalcularTotales(){
       let subtotal=0, descuento=0, impuestos=0;
       for (const r of this.form.conceptos){
-        const sub = Number(r.cantidad||0) * Number(r.precio||0);
-        const des = Number(r.descuento||0);
-        subtotal += sub;
-        descuento += des;
-        // impuestos por ahora 0; cuando agreguemos IU de impuestos por concepto, sumar aquí
+        const base = this.baseRow(r);
+        subtotal += Number(r.cantidad||0) * Number(r.precio||0);
+        descuento += Number(r.descuento||0);
+        // impuestos por concepto
+        for (const i of (r.impuestos||[])){
+          if (i.factor==='Exento') continue;
+          const tasa = Number(i.tasa||0)/100;
+          const m = base * tasa;
+          impuestos += (i.tipo==='R' ? -m : m);
+        }
       }
       const total = subtotal - descuento + impuestos;
       this.totales = { subtotal, descuento, impuestos, total };
     },
 
-    // ----- relacionados -----
-    agregarRelacionado(){
-      this.form.relacionados.push({ uid:this.uid(), tipo_relacion:'', uuid:'' });
-    },
-    eliminarRelacionado(i){
-      this.form.relacionados.splice(i,1);
-    },
+    // relacionados
+    agregarRelacionado(){ this.form.relacionados.push({ uid:this.uid(), tipo_relacion:'', uuid:'' }); },
+    eliminarRelacionado(i){ this.form.relacionados.splice(i,1); },
 
-    // ----- acciones -----
-    previewFactura(){
-      // TODO: post a /facturacion/facturas/preview con this.form
-      alert('Previsualización: pendiente de integrar endpoint /preview');
+    // acciones
+    previsualizar(){
+      // validación mínima en cliente
+      if (!this.form.cliente_id) { alert('Selecciona un cliente'); return; }
+      if (!this.form.serie || !this.form.folio) { alert('Serie/Folio inválidos'); return; }
+      if (!this.form.conceptos.length) { alert('Agrega al menos un concepto'); return; }
+      // post al preview (servidor hará validación completa)
+      this.$refs.previewForm.submit();
     },
     guardarBorrador(){
-      // TODO: post a /facturacion/facturas/guardar con this.form (estatus prefactura)
-      alert('Guardar prefactura: pendiente de integrar endpoint /guardar');
-    },
-    timbrarFactura(){
-      // TODO validaciones -> post al endpoint de timbrado
-      alert('Timbrar: pendiente de integrar lógica de timbrado');
+      alert('El guardado definitivo se hará desde la Previsualización, para obligar la validación previa.');
+      this.previsualizar();
     },
   });
 

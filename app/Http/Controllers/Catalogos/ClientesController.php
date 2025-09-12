@@ -63,15 +63,31 @@ class ClientesController extends Controller
         return view('catalogos.clientes.edit', compact('cliente'));
     }
 
-    public function update(ClienteUpdateRequest $request, Cliente $cliente)
+    public function update(\App\Http\Requests\ClienteUpdateRequest $request, \App\Models\Cliente $cliente)
     {
         $rfc = session('rfc_seleccionado');
         abort_unless($rfc, 403);
         abort_unless(optional($cliente->rfcUsuario)->rfc === $rfc, 403);
 
-        $data = $request->validated();
-        // mantenemos users_id y rfc_usuario_id como estaban (el RFC activo no cambia aquí)
-        $cliente->update($data);
+        $cliente->update($request->validated());
+
+        if ($request->expectsJson()) {
+            // Devuelve los campos que usa la vista
+            return response()->json([
+                'id'             => $cliente->id,
+                'rfc'            => $cliente->rfc,
+                'razon_social'   => $cliente->razon_social,
+                'calle'          => $cliente->calle,
+                'no_ext'         => $cliente->no_ext,
+                'no_int'         => $cliente->no_int,
+                'colonia'        => $cliente->colonia,
+                'localidad'      => $cliente->localidad,
+                'estado'         => $cliente->estado,
+                'codigo_postal'  => $cliente->codigo_postal,
+                'pais'           => $cliente->pais,
+                'email'          => $cliente->email,
+            ]);
+        }
 
         return redirect()->route('clientes.index')->with('ok', 'Cliente actualizado.');
     }
@@ -86,4 +102,31 @@ class ClientesController extends Controller
 
         return redirect()->route('clientes.index')->with('ok', 'Cliente eliminado.');
     }
+
+    public function quickUpdate(Request $req, Cliente $cliente)
+    {
+        $rfc = session('rfc_seleccionado');
+        abort_unless($rfc, 403);
+        abort_unless(optional($cliente->rfcUsuario)->rfc === $rfc, 403);
+
+        $data = $req->validate([
+            'nombre'          => 'required|string|max:255',
+            'rfc'             => 'required|string|max:13',
+            'uso_cfdi'        => 'nullable|string|max:5',
+            'regimen_fiscal'  => 'nullable|string|max:5',
+            'cp'              => 'nullable|string|max:10',
+            'correo'          => 'nullable|email|max:255',
+            'telefono'        => 'nullable|string|max:30',
+            'direccion'       => 'nullable|string|max:500',
+        ]);
+
+        $cliente->fill($data)->save();
+
+        return response()->json([
+            'ok'      => true,
+            'cliente' => $cliente->only(['id','nombre','rfc','uso_cfdi','regimen_fiscal','cp','correo','telefono','direccion']),
+            'msg'     => 'Cliente actualizado.',
+        ]);
+    }
+
 }

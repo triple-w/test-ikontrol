@@ -70,4 +70,46 @@ class FoliosController extends Controller
 
         return redirect()->route('folios.index')->with('ok','Serie de folios eliminada.');
     }
+
+    public function apiNext(Request $r)
+    {
+        // Solo para facturas/notas: I y E
+        $tipo = strtoupper($r->query('tipo', 'I'));
+        if (!in_array($tipo, ['I','E'])) {
+            $tipo = 'I';
+        }
+
+        $rfc = session('rfc_seleccionado');
+        abort_unless($rfc, 422, 'RFC activo requerido.');
+
+        // Busca el folio/serie para el RFC activo y tipo
+        $folio = Folio::forActiveRfc()
+            ->where('tipo', $tipo)
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$folio) {
+            // Sin configuración: regresa valores por defecto
+            return response()->json([
+                'serie'     => null,
+                'siguiente' => 1,
+                'tipo'      => $tipo,
+            ]);
+        }
+
+        $serie = $folio->serie ?? $folio->prefijo ?? null;
+
+        // Toma el siguiente consecutivo con tolerancia a distintos nombres de columna
+        $sig =
+            $folio->siguiente
+            ?? $folio->folio_siguiente
+            ?? (($folio->folio_actual ?? $folio->consecutivo ?? 0) + 1);
+
+        return response()->json([
+            'serie'     => $serie,
+            'siguiente' => (int) $sig,
+            'tipo'      => $tipo,
+        ]);
+    }
+
 }

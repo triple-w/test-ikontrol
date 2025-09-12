@@ -30,21 +30,30 @@ Route::redirect('/', '/dashboard');
 // -------- Cambiar RFC activo (lo usa tu dropdown del header)
 Route::post('/cambiar-rfc', [RfcController::class, 'cambiar'])->name('rfc.cambiar');
 
+Route::middleware(['auth'])->group(function () {
 
+    // --- API auxiliares (SE MANTIENEN para compatibilidad) ---
+    Route::get('/api/series/next',        [FoliosController::class,    'apiNext'])->name('series.next');
+    Route::get('/api/productos/buscar',   [ProductosController::class, 'buscar'])->name('productos.buscar');
+    Route::get('/api/sat/clave-prod-serv',[ProductosController::class, 'buscarClaveProdServ'])->name('sat.clave_prod_serv');
+    Route::get('/api/sat/clave-unidad',   [ProductosController::class, 'buscarClaveUnidad'])->name('sat.clave_unidad');
 
+    // Quick update de cliente desde el modal lateral en create de facturas
+    Route::put('/catalogos/clientes/{cliente}/quick-update', [ClientesController::class, 'quickUpdate'])->name('clientes.quickUpdate');
 
-Route::middleware(['web','auth'])->group(function () {
-    // pantalla
-    Route::get('/facturacion/facturas/crear', [FacturaUiController::class, 'create'])
-        ->name('facturas.create');
+    // ======================== FACTURAS - UI NUEVA ========================
+    // Pantalla de creación
+    Route::get('/facturacion/facturas/crear', [FacturaUiController::class, 'create'])->name('facturas.create');
 
-    // APIs para la UI
-    Route::get('/api/series/next',  [FacturaUiController::class, 'nextFolio'])->name('api.series.next');
-    Route::get('/api/productos/buscar', [FacturaUiController::class, 'buscarProductos'])->name('api.productos.buscar');
+    // Preview (validación obligatoria)
     Route::post('/facturacion/facturas/preview', [FacturaUiController::class, 'preview'])->name('facturas.preview');
-    Route::post('/facturacion/facturas/guardar', [FacturaUiController::class, 'store'])->name('facturas.store'); // (placeholder)
-});
 
+    // Guardado (borrador / persistencia que definas en el controlador)
+    Route::post('/facturacion/facturas', [FacturaUiController::class, 'store'])->name('facturas.store');
+
+    // Timbrado desde el preview (añadido; no existía conflicto previo)
+    Route::post('/facturacion/facturas/timbrar', [FacturaUiController::class, 'timbrar'])->name('facturas.timbrar');
+});
 
 // ======================== ÁREA AUTENTICADA ========================
 Route::middleware(['auth'])->group(function () {
@@ -88,7 +97,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('search/unidades', [CatalogSearchController::class, 'unidades'])->name('catalogos.search.unidades');
     });
 
-    // ======================== FACTURACIÓN ========================
+    // ======================== FACTURACIÓN (historiales) ========================
     Route::prefix('facturacion')->group(function () {
         // Historial Facturas
         Route::get('facturas',                   [FacturasHistorialController::class, 'index'])->name('facturas.index');

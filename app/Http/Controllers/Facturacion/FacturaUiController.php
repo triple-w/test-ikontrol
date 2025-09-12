@@ -1,117 +1,205 @@
 <?php
+
 namespace App\Http\Controllers\Facturacion;
 
 use App\Http\Controllers\Controller;
-use App\Models\Cliente;
-use App\Models\Producto;
-use App\Models\SeriesFolio;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Validator;
 
 class FacturaUiController extends Controller
 {
-    public function create(Request $request)
+    /**
+     * Devuelve la siguiente Serie/Folio para el RFC y tipo (I/E).
+     * GET /api/series/next?tipo=I|E&rfc={rfc_usuario_id}
+     */
+    public function apiSeriesNext(Request $r)
     {
-        $user = $request->user();
+      $tipo = strtoupper($r->query('tipo','I'));
+      if (!in_array($tipo, ['I','E'])) return response()->json(['serie'=>'','folio'=>'']);
 
-        // 1) Obtén el RFC activo desde sesión (compatibles con nombres anteriores)
-        $rfcUsuarioId = session('rfc_usuario_id') ?? session('rfc_activo_id');
+      $rfcId = (int) $r->query('rfc', 0);
+      if ($rfcId <= 0) $rfcId = (int) session('rfc_usuario_id');
 
-        // 2) Si no hubiera en sesión, toma el primero del usuario (detectando la FK)
-        if (!$rfcUsuarioId) {
-            $colUserRU = null;
-            foreach (['users_id', 'user_id', 'usuario_id'] as $c) {
-                if (Schema::hasColumn('rfc_usuarios', $c)) { $colUserRU = $c; break; }
-            }
-            $q = DB::table('rfc_usuarios');
-            if ($colUserRU) $q->where($colUserRU, $user->id);
-            $rfcUsuarioId = $q->orderBy('id')->value('id');
-            if ($rfcUsuarioId) {
-                session(['rfc_usuario_id' => $rfcUsuarioId]);
-            }
-        }
+      // folios: id, rfc_usuario_id, tipo, serie, folio_inicio, folio_actual, folio_fin, activo
+      $folio = DB::table('folios')
+        ->where('rfc_usuario_id', $rfcId)
+        ->where('tipo', $tipo)
+        ->where(function($q){ $q->whereNull('activo')->orWhere('activo',1); })
+        ->orderByDesc('id')
+        ->first();
 
-        // 3) RFC texto para mostrar en la cabecera
-        $rfcActivo = DB::table('rfc_usuarios')->where('id', $rfcUsuarioId)->value('rfc') ?? '—';
+      if (!$folio) return response()->json(['serie'=>'','folio'=>'']);
 
-        // 4) Lista de clientes con los campos que pediste
-        $clientes = DB::table('clientes')
-            ->when(Schema::hasColumn('clientes', 'rfc_usuario_id'),
-                fn($q) => $q->where('rfc_usuario_id', $rfcUsuarioId))
-            ->orderBy('razon_social', 'asc')
-            ->get([
-                'id','rfc','razon_social',
-                'calle','no_ext','no_int','colonia','localidad','estado','codigo_postal','pais',
-                'email',
-            ]);
+      $serie = (string)($folio->serie ?? '');
+      $next  = (int)   ($folio->folio_actual ?? 0) + 1;
+      // respetar límites si existen
+      $ini   = (int)   ($folio->folio_inicio ?? 1);
+      $fin   = (int)   ($folio->folio_fin ?? 0);
+      if ($next < $ini) $next = $ini;
+      if ($fin > 0 && $next > $fin) $next = $fin; // tope visual (persistencia real al timbrar)
 
-        return view('facturacion.facturas.create', [
-            'rfcUsuarioId' => (int) $rfcUsuarioId,
-            'rfcActivo'    => $rfcActivo,
-            'clientes'     => $clientes,
+      return response()->json(['serie'=>$serie, 'folio'=>$next]);
+    }
+
+    /**
+     * Busca productos del RFC por código/descripcion.
+     * GET /api/productos/buscar?q=...&rfc={rfc_usuario_id}
+     */
+    public function apiProductosBuscar(Request $r)
+    {
+      $q = trim($r->query('q',''));
+      $rfcId = (int) $r->query('rfc', 0);
+      if ($rfcId <= 0) $rfcId = (int) session('rfc_usuario_id');
+
+      if ($q === '' || mb_strlen($q) < 2) return response()->json([]);
+
+      $rows = DB::table('productos as p')
+        ->leftJoin('sat_clave_prodserv as cps', 'cps.id', '=', 'p.clave_prodserv_id')
+        ->leftJoin('sat_clave_unidad as cu', 'cu.id', '=', 'p.clave_unidad_id')
+        ->where('p.rfc_usuario_id', $rfcId)
+        ->where(function($w) use ($q){
+          $w->where('p.clave','like',"%{$q}%")
+            ->orWhere('p.descripcion','like',"%{$q}%");
+        })
+        ->orderBy('p.descripcion')
+        ->limit(20)
+        ->get([
+          'p.id',
+          'p.clave',
+          'p.descripcion',
+          'p.precio',
+          DB::raw('COALESCE(cps.clave, p.clave_prodserv) as clave_prod_serv'),
+          DB::raw('COALESCE(cu.clave, p.clave_unidad) as clave_unidad'),
+          DB::raw('COALESCE(p.unidad, cu.nombre) as unidad'),
         ]);
+
+      // Normaliza salida
+      $out = $rows->map(function($x){
+        return [
+          'id' => (int)$x->id,
+          'clave' => $x->clave,
+          'descripcion' => $x->descripcion,
+          'precio' => (float)($x->precio ?? 0),
+          'clave_prod_serv' => (string)($x->clave_prod_serv ?? ''),
+          'clave_unidad' => (string)($x->clave_unidad ?? ''),
+          'unidad' => (string)($x->unidad ?? ''),
+        ];
+      })->values();
+
+      return response()->json($out);
     }
 
-    // Serie/Folio automáticos por tipo (I,E,P,N)
-    public function nextFolio(Request $request)
+    /**
+     * Búsqueda ligera SAT: ClaveProdServ
+     * GET /api/sat/clave-prod-serv?q=...
+     */
+    public function apiSatClaveProdServ(Request $r)
     {
-        $request->validate(['tipo' => 'required|in:I,E,P,N']);
-        $rfcId = optional(Auth::user()->rfcs->firstWhere('rfc', session('rfc_seleccionado')))->id;
-
-        $defSerie = [
-            'I' => 'F',   // Factura ingreso
-            'E' => 'NC',  // Nota de crédito
-            'P' => 'CP',  // Complemento de pago
-            'N' => 'NOM', // Nómina
-        ][$request->tipo];
-
-        $cfg = SeriesFolio::firstOrCreate(
-            ['rfc_id' => $rfcId, 'tipo_comprobante' => $request->tipo],
-            ['serie' => $defSerie, 'ultimo_folio' => 0]
-        );
-
-        return response()->json([
-            'serie' => $cfg->serie,
-            'folio' => $cfg->ultimo_folio + 1,
-        ]);
+      $q = trim($r->query('q',''));
+      if (mb_strlen($q) < 3) return response()->json([]);
+      $rows = DB::table('sat_clave_prodserv')
+        ->where(function($w) use ($q){
+          $w->where('clave','like',"%{$q}%")->orWhere('descripcion','like',"%{$q}%");
+        })
+        ->orderBy('clave')->limit(40)->get(['id','clave','descripcion']);
+      return response()->json($rows->map(function($x){ return ['id'=>$x->id, 'clave'=>$x->clave, 'descripcion'=>$x->descripcion]; }));
     }
 
-    // Autocompletar productos
-    public function buscarProductos(Request $request)
+    /**
+     * Búsqueda ligera SAT: ClaveUnidad
+     * GET /api/sat/clave-unidad?q=...
+     */
+    public function apiSatClaveUnidad(Request $r)
     {
-        $q = trim($request->get('q',''));
-        if ($q === '') return response()->json([]);
-
-        $prods = Producto::where('descripcion','like',"%{$q}%")
-            ->orderBy('descripcion')->limit(20)
-            ->get(['id','descripcion','precio','clave_prod_serv_id','clave_unidad_id','unidad']);
-
-        return response()->json($prods);
+      $q = trim($r->query('q',''));
+      if (mb_strlen($q) < 2) return response()->json([]);
+      $rows = DB::table('sat_clave_unidad')
+        ->where(function($w) use ($q){
+          $w->where('clave','like',"%{$q}%")->orWhere('nombre','like',"%{$q}%");
+        })
+        ->orderBy('clave')->limit(40)->get(['id','clave', 'nombre as descripcion', 'nombre as unidad']);
+      return response()->json($rows->map(function($x){ return ['id'=>$x->id, 'clave'=>$x->clave, 'descripcion'=>$x->descripcion, 'unidad'=>$x->unidad]; }));
     }
 
-    // Vista previa (HTML simple por ahora)
+    /**
+     * PREVIEW: valida payload y despliega invoice con botones Guardar/Timbrar
+     * POST /facturacion/facturas/preview
+     */
     public function preview(Request $request)
     {
-        // solo validación básica; la validación fuerte la pondrás en StoreFacturaRequest cuando timbres
-        $data = $request->validate([
-            'encabezado' => 'required|array',
-            'cliente'    => 'required|array',
-            'conceptos'  => 'required|array|min:1',
-            'relaciones' => 'array',
-            'totales'    => 'array',
-        ]);
+      // el front manda todo en payload JSON
+      $payload = json_decode($request->input('payload','{}'), true) ?: [];
 
-        return view('facturacion.facturas.preview', $data); // crea esta vista con tu invoice
+      // validación fuerte
+      Validator::make($payload, [
+        'tipo_comprobante'            => 'required|in:I,E',
+        'serie'                       => 'required|string|max:10',
+        'folio'                       => 'required',
+        'fecha'                       => 'required|date',
+        'metodo_pago'                 => 'required|in:PUE,PPD',
+        'forma_pago'                  => 'required|string|max:3',
+        'comentarios_pdf'             => 'nullable|string|max:2000',
+        'cliente_id'                  => 'required|integer|min:1',
+        'conceptos'                   => 'required|array|min:1',
+        'conceptos.*.descripcion'     => 'required|string|max:1000',
+        'conceptos.*.clave_prod_serv' => 'required|string|max:8',
+        'conceptos.*.clave_unidad'    => 'required|string|max:5',
+        'conceptos.*.unidad'          => 'nullable|string|max:15',
+        'conceptos.*.cantidad'        => 'required|numeric|min:0.001',
+        'conceptos.*.precio'          => 'required|numeric|min:0',
+        'conceptos.*.descuento'       => 'nullable|numeric|min:0',
+      ])->validate();
+
+      // prepara datos de cliente
+      $cliente = DB::table('clientes')->where('id', $payload['cliente_id'])->first();
+      abort_unless($cliente, 404);
+
+      // totales (servidor)
+      $subtotal=0; $descuento=0; $impuestos=0;
+      foreach ($payload['conceptos'] as $c) {
+        $sub = (float)$c['cantidad'] * (float)$c['precio'];
+        $des = (float)($c['descuento'] ?? 0);
+        $base = max($sub - $des, 0);
+        $subtotal += $sub;
+        $descuento += $des;
+        foreach (($c['impuestos'] ?? []) as $i) {
+          if (($i['factor'] ?? '') === 'Exento') continue;
+          $tasa = (float)($i['tasa'] ?? 0) / 100;
+          $m = $base * $tasa;
+          $impuestos += ($i['tipo'] ?? 'T') === 'R' ? -$m : $m;
+        }
+      }
+      $total = $subtotal - $descuento + $impuestos;
+
+      $data = [
+        'emisor_rfc' => session('rfc_seleccionado'),
+        'comprobante' => $payload,
+        'cliente' => $cliente,
+        'totales' => compact('subtotal','descuento','impuestos','total'),
+      ];
+
+      return view('facturacion.facturas.preview', $data);
     }
 
-    // Placeholder de guardado/timbrado
-    public function store(Request $request)
+    /**
+     * Guardar borrador desde preview (placeholder de persistencia)
+     * POST /facturacion/facturas/guardar
+     */
+    public function guardar(Request $r)
     {
-        // Aquí harás: validación SAT, armado de XML, timbrado PAC, envío correo, decremento de timbres, etc.
-        return back()->with('status', 'Guardado (placeholder)');
+      // aquí eventualmente insertas a tus tablas de prefactura, etc.
+      return back()->with('ok', 'Prefactura guardada (placeholder).');
+    }
+
+    /**
+     * Timbrar desde preview (placeholder)
+     * POST /facturacion/facturas/timbrar
+     */
+    public function timbrar(Request $r)
+    {
+      // aquí armarias el XML y timbras con el PAC
+      return back()->with('ok', 'Timbrado enviado (placeholder).');
     }
 }
