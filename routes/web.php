@@ -51,7 +51,8 @@ Route::middleware(['auth'])->group(function () {
     // Guardado (borrador)
     Route::post('/facturacion/facturas',            [FacturaUiController::class, 'store'])->name('facturas.store');
     // Alias que usa la vista de preview:
-    Route::post('/facturacion/facturas/guardar',    [FacturaUiController::class, 'store'])->name('facturas.guardar');
+    Route::post('/facturacion/facturas/guardar',  [\App\Http\Controllers\Facturacion\FacturaUiController::class, 'store'])->name('facturas.guardar');
+
 
     // Timbrado desde el preview
     Route::post('/facturacion/facturas/timbrar',    [FacturaUiController::class, 'timbrar'])->name('facturas.timbrar');
@@ -108,6 +109,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('facturas/{factura}/pdf',     [FacturasHistorialController::class, 'descargarPdf'])->name('facturas.pdf');
         Route::get('facturas/{factura}/xml',     [FacturasHistorialController::class, 'descargarXml'])->name('facturas.xml');
         Route::post('facturas/{factura}/email',  [FacturasHistorialController::class, 'enviarEmail'])->name('facturas.email');
+        
 
         // Historial Complementos
         Route::get('complementos',                   [ComplementosHistorialController::class, 'index'])->name('complementos.index');
