@@ -312,49 +312,43 @@ class FacturaUiController extends Controller
      */
     private function normalizarRelacionados(array $p): array
     {
-        // 1) Ubicar contenedor
         $candidatos = ['relacionados','cfdi_relacionados','documentos_relacionados','Relacionados','CfdiRelacionados'];
         $data = null;
         foreach ($candidatos as $k) {
             if (isset($p[$k])) { $data = $p[$k]; break; }
         }
-        // También caso "plano": {tipo_relacion, uuids}
         if ($data === null && (isset($p['tipo_relacion']) || isset($p['TipoRelacion']))) {
             $data = [$p];
         }
         if ($data === null) return [];
-
-        // 2) Normalizar a arreglo
         if (!is_array($data)) return [];
-        // Si viene un único objeto
-        if (isset($data['tipo_relacion']) || isset($data['TipoRelacion']) || isset($data['uuids']) || isset($data['UUIDs'])) {
+        if (isset($data['tipo_relacion']) || isset($data['TipoRelacion']) || isset($data['uuids']) || isset($data['UUIDs']) || isset($data['uuid']) || isset($data['UUID'])) {
             $data = [$data];
         }
 
         $out = [];
         foreach ($data as $item) {
             if (!is_array($item)) {
-                // Si es string UUID suelto
                 if (is_string($item) && strlen($item) >= 10) {
                     $out[] = ['tipo_relacion'=>'', 'uuids'=>[$item]];
                 }
                 continue;
             }
-            // Detectar tipo_relacion en varias formas
-            $tipo = $item['tipo_relacion'] ?? $item['TipoRelacion'] ?? $item['tipo'] ?? '';
-            // Detectar lista de UUIDs en varias formas
-            $uuids = $item['uuids'] ?? $item['UUIDs'] ?? $item['cfdis'] ?? $item['Cfdis'] ?? $item['lista'] ?? [];
+            $tipo  = $item['tipo_relacion'] ?? $item['TipoRelacion'] ?? $item['tipo'] ?? '';
+            $uuids = $item['uuids'] ?? $item['UUIDs'] ?? $item['cfdis'] ?? $item['Cfdis'] ?? $item['lista'] ?? null;
+
+            if ($uuids === null) {
+                // Soporta uuid singular (minúscula o mayúscula)
+                if (isset($item['uuid'])) $uuids = [$item['uuid']];
+                elseif (isset($item['UUID'])) $uuids = [$item['UUID']];
+            }
+
             if (is_string($uuids)) {
-                // quizá pipe/coma separados
                 $uuids = preg_split('/[|,;\s]+/', $uuids, -1, PREG_SPLIT_NO_EMPTY);
             }
             if (!is_array($uuids)) $uuids = [];
-            // Limpiar/filtrar
             $uuids = array_values(array_filter(array_map('trim', $uuids), fn($u)=> is_string($u) && strlen($u) > 10));
-            if (count($uuids)===0 && isset($item['UUID'])) {
-                $uuids = [ (string)$item['UUID'] ];
-            }
-            if (count($uuids)===0) continue;
+            if (!count($uuids)) continue;
 
             $out[] = [
                 'tipo_relacion' => (string)$tipo,
@@ -363,6 +357,7 @@ class FacturaUiController extends Controller
         }
         return $out;
     }
+
 
 
     /**
@@ -396,6 +391,21 @@ class FacturaUiController extends Controller
         }
         $total = $subtotal - $descuento + $impuestos;
 
+            $borradorId   = isset($p['borrador_id']) ? (int)$p['borrador_id'] : null;
+            $rfcUsuarioId = (int) session('rfc_usuario_id');
+
+            if ($borradorId) {
+                $b = \App\Models\FacturaBorrador::where('id', $borradorId)
+                    ->when($rfcUsuarioId, fn($q)=>$q->where('rfc_usuario_id', $rfcUsuarioId))
+                    ->first();
+                if (!$b) return back()->with('error', 'No se encontró el borrador a actualizar.');
+            } else {
+                $b = new \App\Models\FacturaBorrador();
+                $b->user_id = auth()->id();
+                $b->rfc_usuario_id = $rfcUsuarioId;
+            }
+
+
         $b = new \App\Models\FacturaBorrador();
         $b->user_id        = auth()->id();
         $b->rfc_usuario_id = (int) session('rfc_usuario_id');
@@ -418,7 +428,7 @@ class FacturaUiController extends Controller
         $b->estatus        = 'borrador';
         $b->save();
 
-        return redirect()->route('facturas.preview')->with('ok', 'Borrador guardado (#'.$b->id.').');
+        return redirect()->route('borradores.index')->with('ok', 'Borrador '.($borradorId?'actualizado':'guardado').' (#'.$b->id.').');
     }
 
 

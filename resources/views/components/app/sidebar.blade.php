@@ -95,6 +95,14 @@
                                     </a>
                                 </li>
 
+                                {{-- Borradores --}}
+                                <li class="mb-1 last:mb-0">
+                                <a class="block text-gray-200 hover:text-white truncate @if(Route::is('borradores.*')){{ 'text-violet-500!' }}@endif"
+                                    href="{{ route('borradores.index') }}">
+                                    <span class="text-sm font-medium">Borradores</span>
+                                </a>
+                                </li>
+
                                 {{-- Complementos de pago (historial) --}}
                                 <li class="mb-1 last:mb-0">
                                     <a class="block text-gray-500/90 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition truncate @if(Route::is('complementos.*')){{ 'text-violet-500!' }}@endif"

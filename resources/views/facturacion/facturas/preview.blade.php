@@ -76,24 +76,17 @@
       </div>
     </div>
 
-    {{-- Documentos Relacionados (si hay) --}}
+    {{-- Documentos Relacionados --}}
     @if (!empty($relacionados))
       <div class="mt-4">
         <div class="text-gray-500 text-sm mb-1">Documentos Relacionados</div>
         <div class="border rounded-lg divide-y">
           @foreach ($relacionados as $rel)
-            @php
-              // Estructura esperada:
-              // $rel = ['tipo_relacion'=>'01', 'uuids'=>['UUID1','UUID2',...]]
-              $tipoRel = $rel['tipo_relacion'] ?? $rel['tipo'] ?? '';
-              $uuids   = $rel['uuids'] ?? $rel['cfdis'] ?? [];
-              if (!is_array($uuids)) $uuids = [];
-            @endphp
             <div class="p-3 text-sm">
-              <div class="font-medium">Tipo relación: {{ $tipoRel }}</div>
-              @if (count($uuids))
+              <div class="font-medium">Tipo relación: {{ $rel['tipo_relacion'] ?? '' }}</div>
+              @if (!empty($rel['uuids']))
                 <ul class="list-disc pl-5 mt-1">
-                  @foreach ($uuids as $u)
+                  @foreach ($rel['uuids'] as $u)
                     <li class="break-all">{{ $u }}</li>
                   @endforeach
                 </ul>
@@ -105,6 +98,17 @@
         </div>
       </div>
     @endif
+
+    {{-- Comentarios en PDF --}}
+    @if (!empty($comentarios_pdf))
+      <div class="mt-4">
+        <div class="text-gray-500 text-sm mb-1">Comentarios (PDF)</div>
+        <div class="p-3 border rounded-lg bg-gray-50 dark:bg-gray-900/40 text-sm whitespace-pre-wrap">
+          {{ $comentarios_pdf }}
+        </div>
+      </div>
+    @endif
+
   </div>
 
   {{-- Conceptos --}}
@@ -179,6 +183,12 @@
         @csrf
         <input type="hidden" name="payload" value="{{ e(json_encode($comprobante)) }}">
         <button class="btn bg-gray-100 hover:opacity-90">Guardar borrador</button>
+      </form>
+
+      {{-- FORMULARIO OCULTO PARA GUARDAR BORRADOR --}}
+      <form x-ref="guardarForm" action="{{ route('facturas.guardar') }}" method="POST" class="hidden">
+        @csrf
+        <input type="hidden" name="payload" :value="JSON.stringify(form)">
       </form>
 
       {{-- Timbrar --}}

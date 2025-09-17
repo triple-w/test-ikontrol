@@ -109,6 +109,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('facturas/{factura}/pdf',     [FacturasHistorialController::class, 'descargarPdf'])->name('facturas.pdf');
         Route::get('facturas/{factura}/xml',     [FacturasHistorialController::class, 'descargarXml'])->name('facturas.xml');
         Route::post('facturas/{factura}/email',  [FacturasHistorialController::class, 'enviarEmail'])->name('facturas.email');
+
+            // Borradores
+        Route::get('borradores', [BorradoresController::class, 'index'])->name('borradores.index');
+        Route::get('borradores/{borrador}/editar', [BorradoresController::class, 'edit'])->name('borradores.edit');
+        Route::delete('borradores/{borrador}', [BorradoresController::class, 'destroy'])->name('borradores.destroy');
         
 
         // Historial Complementos

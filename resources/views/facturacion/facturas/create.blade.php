@@ -56,6 +56,8 @@
       routeClienteUpdateBase: "{{ url('/catalogos/clientes') }}",
       routePreview: "{{ route('facturas.preview') }}",
       csrf: "{{ csrf_token() }}"
+      initial: {!! isset($borrador) ? json_encode($borrador->payload, JSON_UNESCAPED_UNICODE) : 'null' !!},
+      borradorId: {!! isset($borrador) ? (int) $borrador->id : 'null' !!}
     })'
     class="space-y-6"
   >
@@ -340,7 +342,7 @@
     </form>
 
     {{-- MODAL LATERAL: EDITAR CLIENTE --}}
-    <div x-data="{open:false}"
+    <div x-data="{open:false}" x-ref="drawerCliente"
         x-on:open-modal.window="if($event.detail==='modalEditarCliente') open=true"
         x-show="open"
         x-transition.opacity
@@ -548,6 +550,16 @@
 @push('scripts')
 <script>
   window.facturaForm = (opts) => ({
+      init(){
+      if (opts?.initial) {
+        // conserva defaults pero sobreescribe con lo del borrador
+        this.form = Object.assign(this.form, opts.initial || {});
+        if (opts?.borradorId) this.form.borrador_id = opts.borradorId;
+        this.onClienteChange();
+        this.recalcularTotales();
+      }
+    },
+
     // ----- estado -----
     form: {
       tipo_comprobante: 'I', // default
@@ -650,7 +662,10 @@
         this.onClienteChange();
       }
       // cierra drawer
-      document.querySelector('[x-ref=drawerCliente]')?.classList.add('hidden');
+      //document.querySelector('[x-ref=drawerCliente]')?.classList.add('hidden');
+      // cerrar drawer correctamente
+      const drawer = document.querySelector('[x-ref=drawerCliente]');
+      if (drawer && drawer.__x) drawer.__x.$data.open = false;
     },
 
     // ----- conceptos -----
@@ -775,8 +790,10 @@
       this.$refs.previewForm.submit();
     },
     guardarBorrador(){
-      alert('El guardado definitivo se hará desde la Previsualización, para obligar la validación previa.');
-      this.previsualizar();
+    if (!this.form.cliente_id) { alert('Selecciona un cliente'); return; }
+    if (!this.form.serie || !this.form.folio) { alert('Serie/Folio inválidos'); return; }
+    if (!this.form.conceptos.length) { alert('Agrega al menos un concepto'); return; }
+    this.$refs.guardarForm.submit();
     },
   });
 
