@@ -232,37 +232,29 @@ class FacturaUiController extends Controller
      * PREVIEW: valida payload y despliega invoice con botones Guardar/Timbrar
      * POST /facturacion/facturas/preview
      */
-    public function preview(Request $request)
+    public function preview(\Illuminate\Http\Request $request)
     {
         $payload = json_decode($request->input('payload','{}'), true) ?: [];
 
-        Validator::make($payload, [
+        \Illuminate\Support\Facades\Validator::make($payload, [
             'tipo_comprobante'            => 'required|in:I,E',
-            'serie'                       => 'required|string|max:10',
+            'serie'                       => 'required|string|max:20',
             'folio'                       => 'required',
             'fecha'                       => 'required|date',
-            'metodo_pago'                 => 'required|in:PUE,PPD',
-            'forma_pago'                  => 'required|string|max:3',
-            'comentarios_pdf'             => 'nullable|string|max:2000',
+            'metodo_pago'                 => 'required|string|max:5',  // PUE/PPD
+            'forma_pago'                  => 'required|string|max:3',  // 01..99
             'cliente_id'                  => 'required|integer|min:1',
             'conceptos'                   => 'required|array|min:1',
             'conceptos.*.descripcion'     => 'required|string|max:1000',
-            'conceptos.*.clave_prod_serv' => 'nullable|string|max:10',
-            'conceptos.*.clave_unidad'    => 'nullable|string|max:10',
-            'conceptos.*.unidad'          => 'nullable|string|max:50',
             'conceptos.*.cantidad'        => 'required|numeric|min:0.0001',
             'conceptos.*.precio'          => 'required|numeric|min:0',
-            'conceptos.*.descuento'       => 'nullable|numeric|min:0',
         ])->validate();
 
-        // Cliente (con fallback si tuvieras otra columna)
-        $cliente = DB::table('clientes')->where('id', $payload['cliente_id'])->first();
+        // Cliente
+        $cliente = \DB::table('clientes')->where('id', $payload['cliente_id'])->first();
         abort_unless($cliente, 404);
-        if (!isset($cliente->razon_social) && isset($cliente->nombre)) {
-            $cliente->razon_social = $cliente->nombre;
-        }
 
-        // Cálculo de totales del lado servidor (incluye retenciones/traslados)
+        // Totales
         $subtotal=0; $descuento=0; $impuestos=0;
         foreach ($payload['conceptos'] as $c) {
             $sub = (float)$c['cantidad'] * (float)$c['precio'];
@@ -271,7 +263,7 @@ class FacturaUiController extends Controller
             $subtotal += $sub;
             $descuento += $des;
             foreach (($c['impuestos'] ?? []) as $i) {
-                if (($i['factor'] ?? '') === 'Exento') continue;
+                if (strtolower($i['factor'] ?? '') === 'exento') continue;
                 $tasa = (float)($i['tasa'] ?? 0) / 100;
                 $m = $base * $tasa;
                 $impuestos += (($i['tipo'] ?? 'T') === 'R') ? -$m : $m;
@@ -279,13 +271,99 @@ class FacturaUiController extends Controller
         }
         $total = $subtotal - $descuento + $impuestos;
 
+        // === Normalizar Comentarios ===
+        $comentarios_pdf = $this->extraerComentarios($payload);
+
+        // === Normalizar Relacionados ===
+        $relacionados = $this->normalizarRelacionados($payload);
+
         return view('facturacion.facturas.preview', [
-            'emisor_rfc'  => session('rfc_seleccionado'),
-            'comprobante' => $payload,
-            'cliente'     => $cliente,
-            'totales'     => compact('subtotal','descuento','impuestos','total'),
+            'emisor_rfc'    => session('rfc_seleccionado'),
+            'comprobante'   => $payload,
+            'cliente'       => $cliente,
+            'totales'       => compact('subtotal','descuento','impuestos','total'),
+            'relacionados'  => $relacionados,
+            'comentarios_pdf'=> $comentarios_pdf,
         ]);
     }
+
+    /**
+     * Busca comentarios en distintas llaves del payload.
+     */
+    private function extraerComentarios(array $p): string
+    {
+        foreach ([
+            'comentarios_pdf', 'comentariosPDF', 'comentarios',
+            'observaciones', 'notas', 'nota'
+        ] as $k) {
+            if (!empty($p[$k]) && is_string($p[$k])) return (string)$p[$k];
+        }
+        // A veces vienen en metadatos
+        if (!empty($p['meta']['comentarios_pdf'])) return (string)$p['meta']['comentarios_pdf'];
+        return '';
+    }
+
+    /**
+     * Devuelve un arreglo estandarizado:
+     * [
+     *   ['tipo_relacion'=>'01','uuids'=>['UUID1','UUID2']],
+     *   ...
+     * ]
+     */
+    private function normalizarRelacionados(array $p): array
+    {
+        // 1) Ubicar contenedor
+        $candidatos = ['relacionados','cfdi_relacionados','documentos_relacionados','Relacionados','CfdiRelacionados'];
+        $data = null;
+        foreach ($candidatos as $k) {
+            if (isset($p[$k])) { $data = $p[$k]; break; }
+        }
+        // También caso "plano": {tipo_relacion, uuids}
+        if ($data === null && (isset($p['tipo_relacion']) || isset($p['TipoRelacion']))) {
+            $data = [$p];
+        }
+        if ($data === null) return [];
+
+        // 2) Normalizar a arreglo
+        if (!is_array($data)) return [];
+        // Si viene un único objeto
+        if (isset($data['tipo_relacion']) || isset($data['TipoRelacion']) || isset($data['uuids']) || isset($data['UUIDs'])) {
+            $data = [$data];
+        }
+
+        $out = [];
+        foreach ($data as $item) {
+            if (!is_array($item)) {
+                // Si es string UUID suelto
+                if (is_string($item) && strlen($item) >= 10) {
+                    $out[] = ['tipo_relacion'=>'', 'uuids'=>[$item]];
+                }
+                continue;
+            }
+            // Detectar tipo_relacion en varias formas
+            $tipo = $item['tipo_relacion'] ?? $item['TipoRelacion'] ?? $item['tipo'] ?? '';
+            // Detectar lista de UUIDs en varias formas
+            $uuids = $item['uuids'] ?? $item['UUIDs'] ?? $item['cfdis'] ?? $item['Cfdis'] ?? $item['lista'] ?? [];
+            if (is_string($uuids)) {
+                // quizá pipe/coma separados
+                $uuids = preg_split('/[|,;\s]+/', $uuids, -1, PREG_SPLIT_NO_EMPTY);
+            }
+            if (!is_array($uuids)) $uuids = [];
+            // Limpiar/filtrar
+            $uuids = array_values(array_filter(array_map('trim', $uuids), fn($u)=> is_string($u) && strlen($u) > 10));
+            if (count($uuids)===0 && isset($item['UUID'])) {
+                $uuids = [ (string)$item['UUID'] ];
+            }
+            if (count($uuids)===0) continue;
+
+            $out[] = [
+                'tipo_relacion' => (string)$tipo,
+                'uuids'         => $uuids,
+            ];
+        }
+        return $out;
+    }
+
 
     /**
      * Guardar (borrador) — alias
