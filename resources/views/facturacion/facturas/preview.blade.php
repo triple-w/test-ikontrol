@@ -29,6 +29,15 @@
       <div class="text-xs uppercase tracking-wide text-gray-500 mb-1">Emisor</div>
       <div class="font-semibold">{{ $emisor_rfc }}</div>
       {{-- Si quieres, aquí puedes pintar razón social del emisor desde sesión/perfil --}}
+      {{-- Comentarios en PDF (si hay) --}}
+      @if (!empty($comentarios_pdf))
+        <div>
+          <div class="text-gray-500 text-sm mb-1">Comentarios (PDF)</div>
+          <div class="p-3 border rounded-lg bg-gray-50 dark:bg-gray-900/40 text-sm whitespace-pre-wrap">
+            {{ $comentarios_pdf }}
+          </div>
+        </div>
+      @endif
     </div>
 
     <div>
@@ -93,16 +102,6 @@
               @endif
             </div>
           @endforeach
-        </div>
-      </div>
-    @endif
-
-    {{-- Comentarios en PDF (si hay) --}}
-    @if (!empty($comentarios_pdf))
-      <div class="mt-4">
-        <div class="text-gray-500 text-sm mb-1">Comentarios (PDF)</div>
-        <div class="p-3 border rounded-lg bg-gray-50 dark:bg-gray-900/40 text-sm whitespace-pre-wrap">
-          {{ $comentarios_pdf }}
         </div>
       </div>
     @endif
