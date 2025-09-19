@@ -644,29 +644,35 @@
     },
     async submitEditarCliente(){
       if (!this.form.cliente_id) return;
-      const url = `${opts.routeClienteUpdateBase}/${this.form.cliente_id}`;
+
+      // URL correcta: /catalogos/clientes/{id}/quick-update
+      const url = `${this.opts.routeClienteUpdateBase}/${this.form.cliente_id}/quick-update`;
       const body = new URLSearchParams();
-      body.append('_token', opts.csrf);
+      body.append('_token', this.opts.csrf);
       body.append('_method','PUT');
       for (const [k,v] of Object.entries(this.clienteEdit)) body.append(k, v ?? '');
-      const r = await fetch(url, { method:'POST', headers:{'Accept':'application/json'}, body });
+
+      const r = await fetch(url, {
+        method:'POST',
+        headers:{ 'Accept':'application/json', 'X-Requested-With':'XMLHttpRequest' },
+        body
+      });
+
       if (!r.ok) { alert('No se pudo actualizar el cliente'); return; }
+
       const j = await r.json().catch(()=>null);
       if (j && j.id){
-        // actualiza en la lista local
+        // actualiza en la lista local de clientes
         const i = this.clientes.findIndex(x => Number(x.id)===Number(j.id));
         if (i>=0) this.clientes.splice(i,1,j);
-        this.onClienteChange();
-      } else {
-        // si el controlador respondió redirect/html, al menos refrescamos la UI local
+        // refresca el resumen (nombre/dirección) en el panel
         this.onClienteChange();
       }
-      // cierra drawer
-      //document.querySelector('[x-ref=drawerCliente]')?.classList.add('hidden');
-      // cerrar drawer correctamente
-      const drawer = document.querySelector('[x-ref=drawerCliente]');
+      // cierra el drawer correctamente
+      const drawer = this.$refs.drawerCliente;
       if (drawer && drawer.__x) drawer.__x.$data.open = false;
     },
+
 
     // ----- conceptos -----
     agregarConcepto(){

@@ -108,6 +108,8 @@ class FacturaUiController extends Controller
             'metodosPago'   => $metodosPago,
             'minFecha'      => $minFecha,
             'maxFecha'      => $maxFecha,
+            'comentarios_pdf' => $comentarios_pdf,
+            'relacionados'    => $relacionados,
         ]);
     }
 
@@ -338,7 +340,6 @@ class FacturaUiController extends Controller
             $uuids = $item['uuids'] ?? $item['UUIDs'] ?? $item['cfdis'] ?? $item['Cfdis'] ?? $item['lista'] ?? null;
 
             if ($uuids === null) {
-                // Soporta uuid singular (minúscula o mayúscula)
                 if (isset($item['uuid'])) $uuids = [$item['uuid']];
                 elseif (isset($item['UUID'])) $uuids = [$item['UUID']];
             }
@@ -350,10 +351,7 @@ class FacturaUiController extends Controller
             $uuids = array_values(array_filter(array_map('trim', $uuids), fn($u)=> is_string($u) && strlen($u) > 10));
             if (!count($uuids)) continue;
 
-            $out[] = [
-                'tipo_relacion' => (string)$tipo,
-                'uuids'         => $uuids,
-            ];
+            $out[] = ['tipo_relacion'=> (string)$tipo, 'uuids'=> $uuids];
         }
         return $out;
     }

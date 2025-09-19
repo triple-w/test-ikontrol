@@ -14,6 +14,7 @@ use App\Http\Controllers\Facturacion\NominasHistorialController;
 use App\Http\Controllers\Facturacion\ComplementosHistorialController;
 use App\Http\Controllers\Facturacion\FacturasController;
 use App\Http\Controllers\Facturacion\FacturaUiController;
+use App\Http\Controllers\Facturacion\BorradoresController; 
 
 use App\Http\Controllers\Configuracion\SellosController;
 use App\Http\Controllers\Configuracion\PerfilRfcController;
