@@ -55,7 +55,7 @@
       apiSatUnidad: "{{ url('/api/sat/clave-unidad') }}",
       routeClienteUpdateBase: "{{ url('/catalogos/clientes') }}",
       routePreview: "{{ route('facturas.preview') }}",
-      csrf: "{{ csrf_token() }}",
+      csrf: "{{ csrf_token() }}"
       initial: {!! isset($borrador) ? json_encode($borrador->payload, JSON_UNESCAPED_UNICODE) : 'null' !!},
       borradorId: {!! isset($borrador) ? (int) $borrador->id : 'null' !!}
     })'
