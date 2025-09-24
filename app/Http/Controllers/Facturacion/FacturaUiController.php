@@ -56,7 +56,6 @@ class FacturaUiController extends Controller
         $maxFecha = now()->format('Y-m-d\TH:i');
 
         return view('facturacion.facturas.create', [
-<<<<<<< HEAD
             'rfcActivo'      => $rfcActivo,
             'rfcUsuarioId'   => $rfcUsuarioId,
             'clientes'       => $clientes,
@@ -67,15 +66,6 @@ class FacturaUiController extends Controller
             // defaults para includes
             'comentarios_pdf'=> '',
             'relacionados'   => [],
-=======
-            'rfcActivo'     => $rfcActivo,
-            'rfcUsuarioId'  => $rfcUsuarioId,
-            'clientes'      => $clientes,
-            'formasPago'    => $formasPago,
-            'metodosPago'   => $metodosPago,
-            'minFecha'      => $minFecha,
-            'maxFecha'      => $maxFecha,
->>>>>>> parent of c14a727 (cambios)
         ]);
     }
 
@@ -300,7 +290,6 @@ class FacturaUiController extends Controller
             $tipo  = $item['tipo_relacion'] ?? $item['TipoRelacion'] ?? $item['tipo'] ?? '';
             $uuids = $item['uuids'] ?? $item['UUIDs'] ?? $item['cfdis'] ?? $item['Cfdis'] ?? $item['lista'] ?? null;
             if ($uuids === null) {
-                // Soporta uuid singular (minúscula o mayúscula)
                 if (isset($item['uuid'])) $uuids = [$item['uuid']];
                 elseif (isset($item['UUID'])) $uuids = [$item['UUID']];
             }
@@ -309,14 +298,7 @@ class FacturaUiController extends Controller
             $uuids = array_values(array_filter(array_map('trim',$uuids), fn($u)=> is_string($u) && strlen($u) > 10));
             if (!count($uuids)) continue;
 
-<<<<<<< HEAD
             $out[] = ['tipo_relacion'=>(string)$tipo, 'uuids'=>$uuids];
-=======
-            $out[] = [
-                'tipo_relacion' => (string)$tipo,
-                'uuids'         => $uuids,
-            ];
->>>>>>> parent of c14a727 (cambios)
         }
         return $out;
     }
