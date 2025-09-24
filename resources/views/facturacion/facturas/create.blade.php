@@ -56,8 +56,6 @@
       routeClienteUpdateBase: "{{ url('/catalogos/clientes') }}",
       routePreview: "{{ route('facturas.preview') }}",
       csrf: "{{ csrf_token() }}"
-      initial: {!! isset($borrador) ? json_encode($borrador->payload, JSON_UNESCAPED_UNICODE) : 'null' !!},
-      borradorId: {!! isset($borrador) ? (int) $borrador->id : 'null' !!}
     })'
     class="space-y-6"
   >
@@ -342,7 +340,7 @@
     </form>
 
     {{-- MODAL LATERAL: EDITAR CLIENTE --}}
-    <div x-data="{open:false}" x-ref="drawerCliente"
+    <div x-data="{open:false}"
         x-on:open-modal.window="if($event.detail==='modalEditarCliente') open=true"
         x-show="open"
         x-transition.opacity
@@ -550,16 +548,6 @@
 @push('scripts')
 <script>
   window.facturaForm = (opts) => ({
-      init(){
-      if (opts?.initial) {
-        // conserva defaults pero sobreescribe con lo del borrador
-        this.form = Object.assign(this.form, opts.initial || {});
-        if (opts?.borradorId) this.form.borrador_id = opts.borradorId;
-        this.onClienteChange();
-        this.recalcularTotales();
-      }
-    },
-
     // ----- estado -----
     form: {
       tipo_comprobante: 'I', // default
@@ -668,9 +656,14 @@
         // refresca el resumen (nombre/dirección) en el panel
         this.onClienteChange();
       }
+<<<<<<< HEAD
       // cierra el drawer correctamente
       const drawer = this.$refs.drawerCliente;
       if (drawer && drawer.__x) drawer.__x.$data.open = false;
+=======
+      // cierra drawer
+      document.querySelector('[x-ref=drawerCliente]')?.classList.add('hidden');
+>>>>>>> parent of 4204855 (cambios)
     },
 
 
@@ -796,10 +789,8 @@
       this.$refs.previewForm.submit();
     },
     guardarBorrador(){
-    if (!this.form.cliente_id) { alert('Selecciona un cliente'); return; }
-    if (!this.form.serie || !this.form.folio) { alert('Serie/Folio inválidos'); return; }
-    if (!this.form.conceptos.length) { alert('Agrega al menos un concepto'); return; }
-    this.$refs.guardarForm.submit();
+      alert('El guardado definitivo se hará desde la Previsualización, para obligar la validación previa.');
+      this.previsualizar();
     },
   });
 
