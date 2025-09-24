@@ -102,4 +102,19 @@ We're an Italian developer/designer duo creating high-quality design/code resour
 ## Stay in the loop
 
 If you would like to know when we release new resources, you can follow [@pacovitiello](https://x.com/pacovitiello) and [@DavidePacilio](https://x.com/DavidePacilio) on X, or you can subscribe to our [newsletter](https://cruip.com/newsletter/).
-"# test-ikontrol" 
+
+## Nota de restauración
+
+Este repositorio fue restaurado al último estado funcional detectado (commit `681cab3`) el 2025-09-23 para continuar el desarrollo desde una versión estable. Se creó una rama de respaldo con el estado anterior llamada `backup-before-rollback-2025-09-23-5days` por precaución.
+
+Si necesitas volver atrás, puedes usar:
+
+```powershell
+git checkout backup-before-rollback-2025-09-23-5days
+```
+
+Y para trabajar desde el punto restaurado, se creó la rama:
+
+```powershell
+git checkout restore-from-12-days-ago
+```
