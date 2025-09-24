@@ -103,7 +103,7 @@ class ClientesController extends Controller
         return redirect()->route('clientes.index')->with('ok', 'Cliente eliminado.');
     }
 
-    public function quickUpdate(\Illuminate\Http\Request $request, \App\Models\Cliente $cliente)
+    public function quickUpdate(Request $request, Cliente $cliente)
     {
         $data = $request->validate([
             'razon_social'  => 'required|string|max:255',
