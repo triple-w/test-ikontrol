@@ -29,29 +29,15 @@
       <div class="text-xs uppercase tracking-wide text-gray-500 mb-1">Emisor</div>
       <div class="font-semibold">{{ $emisor_rfc }}</div>
       {{-- Si quieres, aquí puedes pintar razón social del emisor desde sesión/perfil --}}
-      {{-- Docs Relacionados en PDF (si hay) --}}
-      @if (!empty($relacionados))
-      <div class="mt-4">
-        <div class="text-gray-500 text-sm mb-1">Documentos Relacionados</div>
-        <div class="border rounded-lg divide-y">
-          @foreach ($relacionados as $rel)
-            <div class="p-3 text-sm">
-              <div class="font-medium">Tipo relación: {{ $rel['tipo_relacion'] ?? '' }}</div>
-              @if (!empty($rel['uuids']))
-                <ul class="list-disc pl-5 mt-1">
-                  @foreach ($rel['uuids'] as $u)
-                    <li class="break-all">{{ $u }}</li>
-                  @endforeach
-                </ul>
-              @else
-                <div class="text-gray-500">Sin UUIDs especificados</div>
-              @endif
-            </div>
-          @endforeach
+      {{-- Comentarios en PDF (si hay) --}}
+      @if (!empty($comentarios_pdf))
+        <div>
+          <div class="text-gray-500 text-sm mb-1">Comentarios (PDF)</div>
+          <div class="p-3 border rounded-lg bg-gray-50 dark:bg-gray-900/40 text-sm whitespace-pre-wrap">
+            {{ $comentarios_pdf }}
+          </div>
         </div>
-      </div>
-    @endif
-
+      @endif
     </div>
 
     <div>

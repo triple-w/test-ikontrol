@@ -103,39 +103,34 @@ class ClientesController extends Controller
         return redirect()->route('clientes.index')->with('ok', 'Cliente eliminado.');
     }
 
+<<<<<<< HEAD
     public function quickUpdate(Request $request, Cliente $cliente)
+=======
+    public function quickUpdate(Request $req, Cliente $cliente)
+>>>>>>> parent of c14a727 (cambios)
     {
-        $data = $request->validate([
-            'razon_social'  => 'required|string|max:255',
-            'rfc'           => 'required|string|max:13',
-            'email'         => 'nullable|email|max:255',
-            'calle'         => 'nullable|string|max:255',
-            'no_ext'        => 'nullable|string|max:50',
-            'no_int'        => 'nullable|string|max:50',
-            'colonia'       => 'nullable|string|max:255',
-            'localidad'     => 'nullable|string|max:255',
-            'estado'        => 'nullable|string|max:255',
-            'codigo_postal' => 'nullable|string|max:10',
-            'pais'          => 'nullable|string|max:100',
+        $rfc = session('rfc_seleccionado');
+        abort_unless($rfc, 403);
+        abort_unless(optional($cliente->rfcUsuario)->rfc === $rfc, 403);
+
+        $data = $req->validate([
+            'nombre'          => 'required|string|max:255',
+            'rfc'             => 'required|string|max:13',
+            'uso_cfdi'        => 'nullable|string|max:5',
+            'regimen_fiscal'  => 'nullable|string|max:5',
+            'cp'              => 'nullable|string|max:10',
+            'correo'          => 'nullable|email|max:255',
+            'telefono'        => 'nullable|string|max:30',
+            'direccion'       => 'nullable|string|max:500',
         ]);
 
-        $cliente->update($data);
+        $cliente->fill($data)->save();
 
         return response()->json([
-            'id'             => $cliente->id,
-            'rfc'            => $cliente->rfc,
-            'razon_social'   => $cliente->razon_social,
-            'email'          => $cliente->email,
-            'calle'          => $cliente->calle,
-            'no_ext'         => $cliente->no_ext,
-            'no_int'         => $cliente->no_int,
-            'colonia'        => $cliente->colonia,
-            'localidad'      => $cliente->localidad,
-            'estado'         => $cliente->estado,
-            'codigo_postal'  => $cliente->codigo_postal,
-            'pais'           => $cliente->pais,
+            'ok'      => true,
+            'cliente' => $cliente->only(['id','nombre','rfc','uso_cfdi','regimen_fiscal','cp','correo','telefono','direccion']),
+            'msg'     => 'Cliente actualizado.',
         ]);
     }
-
 
 }

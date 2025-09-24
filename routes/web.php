@@ -14,6 +14,10 @@ use App\Http\Controllers\Facturacion\NominasHistorialController;
 use App\Http\Controllers\Facturacion\ComplementosHistorialController;
 use App\Http\Controllers\Facturacion\FacturasController;
 use App\Http\Controllers\Facturacion\FacturaUiController;
+<<<<<<< HEAD
+=======
+
+>>>>>>> parent of c14a727 (cambios)
 use App\Http\Controllers\Configuracion\SellosController;
 use App\Http\Controllers\Configuracion\PerfilRfcController;
 use App\Http\Controllers\Admin\TimbresController;
