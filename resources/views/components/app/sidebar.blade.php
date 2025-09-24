@@ -96,12 +96,15 @@
                                 </li>
 
                                 {{-- Borradores --}}
+                                @if (Route::has('borradores.index'))
                                 <li class="mb-1 last:mb-0">
                                 <a class="block text-gray-200 hover:text-white truncate @if(Route::is('borradores.*')){{ 'text-violet-500!' }}@endif"
                                     href="{{ route('borradores.index') }}">
                                     <span class="text-sm font-medium">Borradores</span>
                                 </a>
                                 </li>
+                                @endif
+
 
                                 {{-- Complementos de pago (historial) --}}
                                 <li class="mb-1 last:mb-0">
