@@ -3,29 +3,32 @@
 @section('title','Previsualización de factura')
 
 @section('content')
-@if(session('ok'))
-  <div class="mb-4 p-3 rounded bg-green-50 text-green-700 text-sm">
-    {{ session('ok') }}
-  </div>
-@endif
-
-@if(session('error'))
-  <div class="mb-4 p-3 rounded bg-red-50 text-red-700 text-sm">
-    {{ session('error') }}
-  </div>
-@endif
-
-
 <div class="max-w-5xl mx-auto px-4 py-6">
+
+  {{-- Mensajes flash --}}
+  @if(session('ok'))
+    <div class="mb-4 p-3 rounded bg-green-50 text-green-700 text-sm">
+      {{ session('ok') }}
+    </div>
+  @endif
+  @if(session('error'))
+    <div class="mb-4 p-3 rounded bg-red-50 text-red-700 text-sm">
+      {{ session('error') }}
+    </div>
+  @endif
+
   <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold">Previsualización</h1>
     <div class="flex items-center gap-2">
-      <div class="text-sm text-gray-500">RFC emisor: <span class="font-medium">{{ $emisor_rfc }}</span></div>
+      <div class="text-sm text-gray-500">
+        RFC emisor: <span class="font-medium">{{ $emisor_rfc }}</span>
+      </div>
+
+      {{-- Botón regresar simple (con fallback por si no hay historial) --}}
       <button type="button" class="px-3 py-2 rounded-md border text-sm"
         onclick="if (window.history.length > 1) { history.back(); } else { window.location='{{ route('facturas.create') }}'; }">
         ← Regresar
       </button>
-
     </div>
   </div>
 
@@ -139,40 +142,31 @@
     </div>
   </div>
 
-  {{-- Acciones obligatorias desde preview --}}
+  {{-- Acciones --}}
   <div class="mt-6">
-    {{-- Botón que NO envía ningún form padre, sólo dispara el form oculto --}}
     <button type="button"
             class="btn bg-gray-100 hover:opacity-90"
             onclick="document.getElementById('formGuardarBorrador').submit()">
       Guardar borrador
     </button>
 
-    {{-- Botón Timbrar igual, con form independiente (oculto) --}}
     <button type="button"
             class="btn bg-violet-600 hover:bg-violet-700 text-white ml-2"
             onclick="document.getElementById('formTimbrar').submit()">
       Timbrar
     </button>
   </div>
-  {{-- DEBUG: ver adónde va a postear --}}
-  <div class="mb-2 text-xs text-gray-500">
-    debug action guardar: <code>{{ route('facturas.guardar') }}</code>
-  </div>
 
-  {{-- FORMULARIOS OCULTOS, INDEPENDIENTES (NO anidados) --}}
+  {{-- Formularios ocultos, independientes --}}
   <form id="formGuardarBorrador" method="POST" action="{{ route('facturas.guardar') }}" style="display:none">
     @csrf
     <input type="hidden" name="payload" value='@json($comprobante, JSON_UNESCAPED_UNICODE)'>
-
   </form>
 
   <form id="formTimbrar" method="POST" action="{{ route('facturas.timbrar') }}" style="display:none">
     @csrf
-    <input type="hidden" name="payload" value="{{ e(json_encode($comprobante, JSON_UNESCAPED_UNICODE)) }}">
+    <input type="hidden" name="payload" value='@json($comprobante, JSON_UNESCAPED_UNICODE)'>
   </form>
-
-
 
 </div>
 @endsection
