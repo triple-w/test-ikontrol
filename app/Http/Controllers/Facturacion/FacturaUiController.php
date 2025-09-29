@@ -310,12 +310,12 @@ class FacturaUiController extends Controller
     public function guardar(\Illuminate\Http\Request $r)
     {
         $payload = json_decode($r->input('payload','{}'), true) ?: [];
-        // Validación mínima (el preview ya validó y calculó)
+
         if (!isset($payload['cliente_id']) || !isset($payload['conceptos'])) {
             return back()->with('error','Payload incompleto.');
         }
 
-        // Recalcula totales por seguridad
+        // Recalcula totales
         $subtotal=0; $descuento=0; $impuestos=0;
         foreach ($payload['conceptos'] as $c) {
             $sub = (float)$c['cantidad'] * (float)$c['precio'];
@@ -323,6 +323,7 @@ class FacturaUiController extends Controller
             $base = max($sub - $des, 0);
             $subtotal += $sub;
             $descuento += $des;
+
             foreach (($c['impuestos'] ?? []) as $i) {
                 if (($i['factor'] ?? '') === 'Exento') continue;
                 $tasa = (float)($i['tasa'] ?? 0) / 100;
@@ -354,9 +355,9 @@ class FacturaUiController extends Controller
         $b->estatus        = 'borrador';
         $b->save();
 
-        // Volver al Preview con mensaje de éxito
         return back()->with('ok', 'Borrador guardado (#'.$b->id.').');
     }
+
 
 
 

@@ -63,7 +63,8 @@ Route::middleware(['auth'])->group(function () {
 
     Route::prefix('facturacion/facturas')->name('facturas.')->group(function () {
         Route::post('/preview', [FacturaUiController::class, 'preview'])->name('preview');
-        Route::post('/restore-from-preview', [FacturaUiController::class, 'restoreFromPreview'])->name('restore');
+        //Route::post('/restore-from-preview', [FacturaUiController::class, 'restoreFromPreview'])->name('restore');
+        Route::post('/prefill', [FacturaUiController::class, 'prefillFromPreview'])->name('prefill');
 
         // Borradores
         Route::get('/borradores', [FacturaBorradoresController::class, 'index'])->name('borradores.index');
