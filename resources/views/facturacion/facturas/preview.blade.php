@@ -6,7 +6,10 @@
 <div class="max-w-5xl mx-auto px-4 py-6">
   <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold">Previsualización</h1>
-    <div class="text-sm text-gray-500">RFC emisor: <span class="font-medium">{{ $emisor_rfc }}</span></div>
+    <div class="flex items-center gap-2">
+      <div class="text-sm text-gray-500">RFC emisor: <span class="font-medium">{{ $emisor_rfc }}</span></div>
+      <a href="{{ route('facturas.create') }}" class="px-3 py-2 rounded-md border text-sm">← Regresar</a>
+    </div>
   </div>
 
   {{-- Encabezado --}}
@@ -42,34 +45,31 @@
   {{-- Conceptos --}}
   <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4 mb-6 overflow-x-auto">
     <table class="table-auto w-full text-sm">
-      <thead class="text-xs uppercase text-gray-500 border-b">
-        <tr>
-          <th class="px-2 py-2 text-left w-28">Clave</th>
-          <th class="px-2 py-2 text-left">Descripción</th>
-          <th class="px-2 py-2 text-right w-20">Cant.</th>
-          <th class="px-2 py-2 text-right w-24">Precio</th>
-          <th class="px-2 py-2 text-right w-24">Desc.</th>
-          <th class="px-2 py-2 text-right w-24">Importe</th>
+      <thead>
+        <tr class="text-left text-gray-500 border-b">
+          <th class="px-2 py-2">Clave</th>
+          <th class="px-2 py-2">Descripción</th>
+          <th class="px-2 py-2 text-right">Cant.</th>
+          <th class="px-2 py-2 text-right">V. Unit.</th>
+          <th class="px-2 py-2 text-right">Desc.</th>
+          <th class="px-2 py-2 text-right">Importe</th>
         </tr>
       </thead>
       <tbody>
-        @foreach(($comprobante['conceptos'] ?? []) as $c)
+        @foreach($comprobante['conceptos'] as $c)
           @php
             $sub = (float)$c['cantidad'] * (float)$c['precio'];
             $des = (float)($c['descuento'] ?? 0);
-            $base = max($sub - $des, 0);
-            $imp = 0.0;
-            foreach (($c['impuestos'] ?? []) as $i) {
-              if (($i['factor'] ?? '') === 'Exento') continue;
-              $tasa = (float)($i['tasa'] ?? 0)/100;
-              $m = $base * $tasa;
-              $imp += (($i['tipo'] ?? 'T')==='R') ? -$m : $m;
-            }
-            $importe = $base + $imp;
+            $importe = max($sub - $des, 0);
           @endphp
           <tr class="border-b border-gray-100">
             <td class="px-2 py-2 align-top">{{ $c['clave_prod_serv'] }}/{{ $c['clave_unidad'] }}</td>
-            <td class="px-2 py-2 align-top"><div class="font-medium">{{ $c['descripcion'] }}</div><div class="text-xs text-gray-500">Unidad: {{ $c['unidad'] }}</div></td>
+            <td class="px-2 py-2 align-top">
+              <div class="font-medium">{{ $c['descripcion'] }}</div>
+              @if(!empty($c['unidad']))
+                <div class="text-xs text-gray-500">Unidad: {{ $c['unidad'] }}</div>
+              @endif
+            </td>
             <td class="px-2 py-2 text-right align-top">{{ number_format($c['cantidad'],3) }}</td>
             <td class="px-2 py-2 text-right align-top">{{ number_format($c['precio'],2) }}</td>
             <td class="px-2 py-2 text-right align-top">{{ number_format($des,2) }}</td>
@@ -79,6 +79,38 @@
       </tbody>
     </table>
   </div>
+
+  {{-- Documentos relacionados --}}
+  @php($rels = $comprobante['relacionados'] ?? [])
+  @if(is_array($rels) && count($rels))
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4 mb-6">
+      <h3 class="text-sm font-semibold mb-2">Documentos relacionados</h3>
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-left text-gray-500 border-b">
+            <th class="py-2 pr-3">Tipo relación</th>
+            <th class="py-2 pr-3">UUID</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach($rels as $r)
+            <tr class="border-b border-gray-100">
+              <td class="py-2 pr-3">{{ $r['tipo_relacion'] ?? '' }}</td>
+              <td class="py-2 pr-3 font-mono text-xs">{{ $r['uuid'] ?? '' }}</td>
+            </tr>
+          @endforeach
+        </tbody>
+      </table>
+    </div>
+  @endif
+
+  {{-- Comentarios para PDF --}}
+  @if(!empty($comprobante['comentarios_pdf']))
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-4 mb-6">
+      <h3 class="text-sm font-semibold mb-2">Comentarios (PDF)</h3>
+      <div class="text-sm whitespace-pre-line">{{ $comprobante['comentarios_pdf'] }}</div>
+    </div>
+  @endif
 
   {{-- Totales --}}
   <div class="flex justify-end">

@@ -340,8 +340,10 @@ class FacturaUiController extends Controller
         $b->estatus        = 'borrador';
         $b->save();
 
-        return redirect()->route('facturas.preview')->with('ok', 'Borrador guardado (#'.$b->id.').');
+        // Volver al Preview con mensaje de éxito
+        return back()->with('ok', 'Borrador guardado (#'.$b->id.').');
     }
+
 
 
     /**

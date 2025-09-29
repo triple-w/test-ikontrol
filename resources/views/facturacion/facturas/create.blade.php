@@ -313,7 +313,17 @@
           <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
               <label class="text-xs text-gray-500">Tipo relación</label>
-              <input type="text" class="form-input w-full" x-model="rel.tipo_relacion" placeholder="p.ej. 01, 04">
+              <select class="form-select w-full" x-model="rel.tipo_relacion">
+                <option value="">—</option>
+                <option value="01">01 - Nota de crédito de los documentos relacionados</option>
+                <option value="02">02 - Nota de débito de los documentos relacionados</option>
+                <option value="03">03 - Devolución de mercancía sobre facturas o traslados previos</option>
+                <option value="04">04 - Sustitución de los CFDI previos</option>
+                <option value="05">05 - Traslados de mercancías facturados previamente</option>
+                <option value="06">06 - Factura generada por los traslados previos</option>
+                <option value="07">07 - CFDI por aplicación de anticipo</option>
+              </select>
+              <p class="text-[11px] text-gray-500 mt-1">En el XML sólo se usa el valor numérico.</p>
             </div>
             <div class="md:col-span-2">
               <label class="text-xs text-gray-500">UUID</label>
@@ -329,7 +339,6 @@
 
     {{-- ACCIONES --}}
     <div class="flex items-center justify-end gap-3">
-      <button type="button" class="btn bg-gray-100 dark:bg-gray-700 hover:opacity-90" @click="guardarBorrador">Guardar borrador</button>
       <button type="button" class="btn bg-violet-600 hover:bg-violet-700 text-white" @click="previsualizar">Previsualizar</button>
     </div>
 
@@ -637,7 +646,15 @@
       body.append('_token', opts.csrf);
       body.append('_method','PUT');
       for (const [k,v] of Object.entries(this.clienteEdit)) body.append(k, v ?? '');
-      const r = await fetch(url, { method:'POST', headers:{'Accept':'application/json'}, body });
+      const r = await fetch(url, {
+        method:'POST',
+        headers:{
+          'Accept':'application/json',
+          'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'
+        },
+        body
+      });
+
       if (!r.ok) { alert('No se pudo actualizar el cliente'); return; }
       const j = await r.json().catch(()=>null);
       if (j && j.id){
