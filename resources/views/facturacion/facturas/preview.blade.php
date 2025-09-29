@@ -155,6 +155,10 @@
       Timbrar
     </button>
   </div>
+  {{-- DEBUG: ver adónde va a postear --}}
+  <div class="mb-2 text-xs text-gray-500">
+    debug action guardar: <code>{{ route('facturas.guardar') }}</code>
+  </div>
 
   {{-- FORMULARIOS OCULTOS, INDEPENDIENTES (NO anidados) --}}
   <form id="formGuardarBorrador" method="POST" action="{{ route('facturas.guardar') }}" style="display:none">

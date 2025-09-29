@@ -321,6 +321,28 @@ class FacturaUiController extends Controller
 
     public function store(\Illuminate\Http\Request $r)
     {
+
+        \Log::info('[DBG] facturas.guardar HIT', [
+        'method' => $r->method(),
+        'url'    => $r->fullUrl(),
+        'route'  => optional($r->route())->getName(),
+    ]);
+
+    // ---> PUNTO DE CORTE DE DEBUG <---
+    dd([
+        'HIT'          => 'facturas.guardar',
+        'method'       => $r->method(),
+        'url'          => $r->fullUrl(),
+        'route_name'   => optional($r->route())->getName(),
+        'has_payload'  => $r->has('payload'),
+        'payload_len'  => strlen($r->input('payload', '')),
+        'token'        => $r->input('_token', '(no _token)'),
+        // ojo: payload_plano puede ser grande; si prefieres, coméntalo
+        'payload_plano'=> $r->input('payload', '(sin payload)'),
+        'payload_json' => json_decode($r->input('payload', '{}'), true),
+        'all_except_payload' => $r->except('payload'),
+    ]);
+
         return $this->guardar($r);
     }
 
