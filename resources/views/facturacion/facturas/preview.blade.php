@@ -163,7 +163,8 @@
   {{-- FORMULARIOS OCULTOS, INDEPENDIENTES (NO anidados) --}}
   <form id="formGuardarBorrador" method="POST" action="{{ route('facturas.guardar') }}" style="display:none">
     @csrf
-    <input type="hidden" name="payload" value="{{ e(json_encode($comprobante, JSON_UNESCAPED_UNICODE)) }}">
+    <input type="hidden" name="payload" value='@json($comprobante, JSON_UNESCAPED_UNICODE)'>
+
   </form>
 
   <form id="formTimbrar" method="POST" action="{{ route('facturas.timbrar') }}" style="display:none">

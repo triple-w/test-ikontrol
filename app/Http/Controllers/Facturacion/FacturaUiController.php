@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use App\Models\FacturaBorrador;
+
 
 // Eloquent models
 use App\Models\Folio;
@@ -19,6 +21,29 @@ class FacturaUiController extends Controller
      * GET /facturacion/facturas/crear
      * Carga la vista de creación con datos que la Blade espera.
      */
+
+    /**
+     * Intenta decodificar el payload desde el request, tolerando que venga con comillas HTML (&quot;).
+     * @return array payload como arreglo asociativo; si falla, regresa [].
+     */
+    private function decodePayloadFromRequest(Request $r): array
+    {
+        $raw = $r->input('payload', '');
+
+        // 1) Intenta decodificar tal cual
+        $payload = json_decode($raw, true);
+
+        // 2) Si falló, intenta des-escapar entidades HTML (&quot;) y reintentar
+        if (!is_array($payload)) {
+            $raw2 = html_entity_decode($raw, ENT_QUOTES, 'UTF-8');
+            $payload = json_decode($raw2, true);
+        }
+
+        // 3) Garantiza arreglo
+        return is_array($payload) ? $payload : [];
+    }
+
+
     public function create(Request $request)
     {
         $prefill = session()->pull('factura_prefill');
@@ -319,85 +344,97 @@ class FacturaUiController extends Controller
      * POST /facturacion/facturas  y /facturacion/facturas/guardar
      */
 
-    public function store(\Illuminate\Http\Request $r)
+    public function store(Request $r)
     {
-
-        \Log::info('[DBG] facturas.guardar HIT', [
-        'method' => $r->method(),
-        'url'    => $r->fullUrl(),
-        'route'  => optional($r->route())->getName(),
-    ]);
-
-    // ---> PUNTO DE CORTE DE DEBUG <---
-    dd([
-        'HIT'          => 'facturas.guardar',
-        'method'       => $r->method(),
-        'url'          => $r->fullUrl(),
-        'route_name'   => optional($r->route())->getName(),
-        'has_payload'  => $r->has('payload'),
-        'payload_len'  => strlen($r->input('payload', '')),
-        'token'        => $r->input('_token', '(no _token)'),
-        // ojo: payload_plano puede ser grande; si prefieres, coméntalo
-        'payload_plano'=> $r->input('payload', '(sin payload)'),
-        'payload_json' => json_decode($r->input('payload', '{}'), true),
-        'all_except_payload' => $r->except('payload'),
-    ]);
+        Log::info('[facturas.guardar] HIT', [
+            'method' => $r->method(),
+            'url'    => $r->fullUrl(),
+            'route'  => optional($r->route())->getName(),
+        ]);
 
         return $this->guardar($r);
     }
 
 
-    public function guardar(\Illuminate\Http\Request $r)
-    {
-        $payload = json_decode($r->input('payload','{}'), true) ?: [];
 
-        if (!isset($payload['cliente_id']) || !isset($payload['conceptos'])) {
-            return back()->with('error','Payload incompleto.');
+    public function guardar(Request $r)
+    {
+        // 1) Decodificar payload de forma robusta
+        $payload = $this->decodePayloadFromRequest($r);
+
+        if (empty($payload) || !isset($payload['cliente_id']) || !isset($payload['conceptos']) || !is_array($payload['conceptos'])) {
+            Log::warning('[facturas.guardar] Payload inválido o incompleto', [
+                'raw_len' => strlen($r->input('payload', '')),
+            ]);
+            return back()->with('error', 'No fue posible leer el contenido a guardar (payload inválido).');
         }
 
-        $subtotal=0; $descuento=0; $impuestos=0;
+        // 2) Recalcular totales por seguridad
+        $subtotal  = 0.0;
+        $descuento = 0.0;
+        $impuestos = 0.0;
+
         foreach ($payload['conceptos'] as $c) {
-            $sub = (float)$c['cantidad'] * (float)$c['precio'];
-            $des = (float)($c['descuento'] ?? 0);
+            $cantidad = (float)($c['cantidad'] ?? 0);
+            $precio   = (float)($c['precio'] ?? 0);
+            $des      = (float)($c['descuento'] ?? 0);
+
+            $sub  = $cantidad * $precio;
             $base = max($sub - $des, 0);
-            $subtotal += $sub;
+
+            $subtotal  += $sub;
             $descuento += $des;
 
-            foreach (($c['impuestos'] ?? []) as $i) {
-                if (($i['factor'] ?? '') === 'Exento') continue;
-                $tasa = (float)($i['tasa'] ?? 0) / 100;
-                $m = $base * $tasa;
-                $impuestos += (($i['tipo'] ?? 'T') === 'R') ? -$m : $m;
+            // Impuestos por concepto (si es que vienen)
+            if (!empty($c['impuestos']) && is_array($c['impuestos'])) {
+                foreach ($c['impuestos'] as $i) {
+                    $factor = $i['factor'] ?? '';
+                    if ($factor === 'Exento') {
+                        continue;
+                    }
+                    $tasaPct = (float)($i['tasa'] ?? 0);
+                    $monto   = $base * ($tasaPct / 100.0);
+
+                    $tipoMov = $i['tipo'] ?? 'T'; // T=Traslado, R=Retención
+                    $impuestos += ($tipoMov === 'R') ? -$monto : $monto;
+                }
             }
         }
+
         $total = $subtotal - $descuento + $impuestos;
 
-        $b = new \App\Models\FacturaBorrador();
+        // 3) Persistir en factura_borradores
+        $b = new FacturaBorrador();
         $b->user_id        = auth()->id();
-        $b->rfc_usuario_id = (int) session('rfc_usuario_id'); // puede ser null si tu BD lo permite
+        $b->rfc_usuario_id = (int) session('rfc_usuario_id'); // si tu DB permite null, úsalo en migración/casts
         $b->cliente_id     = (int) $payload['cliente_id'];
+
         $b->tipo           = $payload['tipo_comprobante'] ?? 'I';
         $b->serie          = $payload['serie'] ?? null;
         $b->folio          = (string)($payload['folio'] ?? '');
         $b->fecha          = $payload['fecha'] ?? now();
+
         $b->metodo_pago    = $payload['metodo_pago'] ?? 'PUE';
         $b->forma_pago     = $payload['forma_pago'] ?? '99';
         $b->comentarios_pdf= $payload['comentarios_pdf'] ?? null;
+
         $b->subtotal       = round($subtotal, 2);
         $b->descuento      = round($descuento, 2);
         $b->impuestos      = round($impuestos, 2);
         $b->total          = round($total, 2);
-        $b->payload        = $payload;   // requiere cast a array en el modelo
+
+        // MUY IMPORTANTE: que en el Modelo FacturaBorrador tengas `protected $casts = ['payload'=>'array'];`
+        $b->payload        = $payload;
         $b->estatus        = 'borrador';
         $b->save();
 
+        Log::info('[facturas.guardar] Borrador guardado', ['id' => $b->id]);
+
+        // 4) Redirigir a una ruta GET existente para evitar 404 (GET /preview no existe)
         return redirect()
-    ->route('facturas.borradores.index')
-    ->with('ok', 'Borrador guardado (#'.$b->id.').');
+            ->route('facturas.borradores.index')
+            ->with('ok', 'Borrador guardado (#' . $b->id . ').');
     }
-
-
-
 
     /**
      * Timbrar desde preview (placeholder)
