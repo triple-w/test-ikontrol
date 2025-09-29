@@ -294,8 +294,8 @@ class FacturaUiController extends Controller
     public function prefillFromPreview(\Illuminate\Http\Request $r)
     {
         $payload = json_decode($r->input('payload','{}'), true) ?: [];
-        // Guarda en sesión y redirige a CREATE
-        session(['factura_prefill' => $payload]);
+        // ✅ Usa la MISMA clave que lee create.blade.php
+        session(['factura_restore_payload' => $payload]);
         return redirect()->route('facturas.create');
     }
 
