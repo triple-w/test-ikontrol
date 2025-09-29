@@ -127,16 +127,17 @@
   </div>
 
   {{-- Acciones obligatorias desde preview --}}
-    <form method="POST" action="{{ route('facturas.guardar') }}">
-    @csrf
-    <input type="hidden" name="payload" value="{{ e(json_encode($comprobante, JSON_UNESCAPED_UNICODE)) }}">
-    <button class="btn bg-gray-100 hover:opacity-90">Guardar borrador</button>
-  </form>
+   <form method="POST" action="{{ route('facturas.guardar') }}">
+  @csrf
+  <input type="hidden" name="payload" value="{{ e(json_encode($comprobante, JSON_UNESCAPED_UNICODE)) }}">
+  <button type="submit" class="btn bg-gray-100 hover:opacity-90">Guardar borrador</button>
+</form>
 
-  <form method="POST" action="{{ route('facturas.timbrar') }}" class="mt-6 inline-block ml-2">
-    @csrf
-    <input type="hidden" name="payload" value="{{ e(json_encode($comprobante)) }}">
-    <button class="btn bg-violet-600 hover:bg-violet-700 text-white">Timbrar</button>
-  </form>
+<form method="POST" action="{{ route('facturas.timbrar') }}" class="mt-6 inline-block ml-2">
+  @csrf
+  <input type="hidden" name="payload" value="{{ e(json_encode($comprobante, JSON_UNESCAPED_UNICODE)) }}">
+  <button type="submit" class="btn bg-violet-600 hover:bg-violet-700 text-white">Timbrar</button>
+</form>
+
 </div>
 @endsection

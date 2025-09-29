@@ -43,35 +43,27 @@ Route::middleware(['auth'])->group(function () {
     // Quick update de cliente desde el modal lateral en create de facturas
     Route::put('/catalogos/clientes/{cliente}/quick-update', [ClientesController::class, 'quickUpdate'])->name('clientes.quickUpdate');
 
-    // ======================== FACTURAS - UI NUEVA ========================
+   // ======================== FACTURAS - UI NUEVA ========================
+    Route::prefix('facturacion/facturas')->name('facturas.')->group(function () {
     // Pantalla de creación
-    Route::get('/facturacion/facturas/crear', [FacturaUiController::class, 'create'])->name('facturas.create');
+    Route::get('/crear', [FacturaUiController::class, 'create'])->name('create');
 
     // Preview (validación obligatoria)
-    //Route::post('/facturacion/facturas/preview', [FacturaUiController::class, 'preview'])->name('facturas.preview');
+    Route::post('/preview', [FacturaUiController::class, 'preview'])->name('preview');
 
     // Guardado (borrador)
-    //Route::post('/facturacion/facturas',            [FacturaUiController::class, 'store'])->name('facturas.store');
-    // Alias que usa la vista de preview:
-    Route::post('/facturacion/facturas/guardar',    [FacturaUiController::class, 'store'])->name('facturas.guardar');
+    Route::post('/guardar', [FacturaUiController::class, 'store'])->name('guardar');
 
     // Timbrado desde el preview
-    Route::post('/facturacion/facturas/timbrar',    [FacturaUiController::class, 'timbrar'])->name('facturas.timbrar');
+    Route::post('/timbrar', [FacturaUiController::class, 'timbrar'])->name('timbrar');
 
+    // Borradores
+    Route::get('/borradores', [FacturaBorradoresController::class, 'index'])->name('borradores.index');
+    Route::post('/borradores', [FacturaBorradoresController::class, 'store'])->name('borradores.store');
+    Route::get('/borradores/{borrador}/editar', [FacturaBorradoresController::class, 'loadIntoCreate'])->name('borradores.load');
+    Route::delete('/borradores/{borrador}', [FacturaBorradoresController::class, 'destroy'])->name('borradores.destroy');
+});
 
-
-
-    Route::prefix('facturacion/facturas')->name('facturas.')->group(function () {
-        Route::post('/preview', [FacturaUiController::class, 'preview'])->name('preview');
-        //Route::post('/restore-from-preview', [FacturaUiController::class, 'restoreFromPreview'])->name('restore');
-        Route::post('/facturacion/facturas/borradores', [FacturaBorradoresController::class, 'store'])->name('facturas.borradores.store');
-
-        // Borradores
-        Route::get('/borradores', [FacturaBorradoresController::class, 'index'])->name('borradores.index');
-        Route::post('/borradores', [FacturaBorradoresController::class, 'store'])->name('borradores.store');
-        Route::get('/borradores/{borrador}/editar', [FacturaBorradoresController::class, 'loadIntoCreate'])->name('borradores.load');
-        Route::delete('/borradores/{borrador}', [FacturaBorradoresController::class, 'destroy'])->name('borradores.destroy');
-    });
 
 
     });

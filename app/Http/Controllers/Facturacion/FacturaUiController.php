@@ -291,6 +291,19 @@ class FacturaUiController extends Controller
         ]);
     }
 
+    public function loadIntoCreate(\App\Models\FacturaBorrador $borrador)
+    {
+        $payload = $borrador->payload ?? [];
+        if (!isset($payload['cliente_id']) && $borrador->cliente_id) {
+            $payload['cliente_id'] = (int) $borrador->cliente_id;
+        }
+        session(['factura_restore_payload' => $payload]); // <<-- esta clave es la que consume create.blade.php
+
+        return redirect()->route('facturas.create')
+                        ->with('ok', 'Borrador #'.$borrador->id.' cargado en creación.');
+    }
+
+
     public function prefillFromPreview(\Illuminate\Http\Request $r)
     {
         $payload = json_decode($r->input('payload','{}'), true) ?: [];
