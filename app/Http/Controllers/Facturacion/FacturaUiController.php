@@ -369,7 +369,7 @@ class FacturaUiController extends Controller
         $b->estatus        = 'borrador';
         $b->save();
 
-        return back()->with('ok', 'Borrador guardado (#'.$b->id.').');
+        return redirect()->route('facturas.borradores.index')->with('ok', 'Borrador guardado (#'.$b->id.').');
     }
 
 

@@ -3,6 +3,19 @@
 @section('title','Previsualización de factura')
 
 @section('content')
+@if(session('ok'))
+  <div class="mb-4 p-3 rounded bg-green-50 text-green-700 text-sm">
+    {{ session('ok') }}
+  </div>
+@endif
+
+@if(session('error'))
+  <div class="mb-4 p-3 rounded bg-red-50 text-red-700 text-sm">
+    {{ session('error') }}
+  </div>
+@endif
+
+
 <div class="max-w-5xl mx-auto px-4 py-6">
   <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold">Previsualización</h1>
@@ -127,17 +140,18 @@
   </div>
 
   {{-- Acciones obligatorias desde preview --}}
-   <form method="POST" action="{{ route('facturas.guardar') }}">
-  @csrf
-  <input type="hidden" name="payload" value="{{ e(json_encode($comprobante, JSON_UNESCAPED_UNICODE)) }}">
-  <button type="submit" class="btn bg-gray-100 hover:opacity-90">Guardar borrador</button>
-</form>
+  <form method="POST" action="{{ route('facturas.guardar') }}" class="mt-6 inline-block">
+    @csrf
+    <input type="hidden" name="payload" value="{{ e(json_encode($comprobante, JSON_UNESCAPED_UNICODE)) }}">
+    <button type="submit" class="btn bg-gray-100 hover:opacity-90">Guardar borrador</button>
+  </form>
 
-<form method="POST" action="{{ route('facturas.timbrar') }}" class="mt-6 inline-block ml-2">
-  @csrf
-  <input type="hidden" name="payload" value="{{ e(json_encode($comprobante, JSON_UNESCAPED_UNICODE)) }}">
-  <button type="submit" class="btn bg-violet-600 hover:bg-violet-700 text-white">Timbrar</button>
-</form>
+  <form method="POST" action="{{ route('facturas.timbrar') }}" class="mt-6 inline-block ml-2">
+    @csrf
+    <input type="hidden" name="payload" value="{{ e(json_encode($comprobante, JSON_UNESCAPED_UNICODE)) }}">
+    <button type="submit" class="btn bg-violet-600 hover:bg-violet-700 text-white">Timbrar</button>
+  </form>
+
 
 </div>
 @endsection

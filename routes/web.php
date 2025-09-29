@@ -12,7 +12,6 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Facturacion\FacturasHistorialController;
 use App\Http\Controllers\Facturacion\NominasHistorialController;
 use App\Http\Controllers\Facturacion\ComplementosHistorialController;
-use App\Http\Controllers\Facturacion\FacturasController;
 use App\Http\Controllers\Facturacion\FacturaUiController;
 use App\Http\Controllers\Facturacion\FacturaBorradoresController;
 use App\Http\Controllers\Configuracion\SellosController;
@@ -21,55 +20,50 @@ use App\Http\Controllers\Configuracion\PerfilRfcController;
 use App\Http\Controllers\Admin\TimbresController;
 use App\Http\Controllers\Admin\PacPlaygroundController;
 
-    
-
 // Home -> Dashboard
 Route::middleware(['auth'])->get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
 // (Opcional) si quieres que / vaya directo al Dashboard:
 Route::redirect('/', '/dashboard');
 
-// -------- Cambiar RFC activo (lo usa tu dropdown del header)
+// Cambiar RFC activo (dropdown del header)
 Route::post('/cambiar-rfc', [RfcController::class, 'cambiar'])->name('rfc.cambiar');
 
+
+// ======================== ÁREA AUTENTICADA ========================
 Route::middleware(['auth'])->group(function () {
 
-    // --- API auxiliares (para la UI de facturas) ---
-    Route::get('/api/series/next',        [\App\Http\Controllers\Facturacion\FacturaUiController::class, 'apiSeriesNext'])->name('series.next');
-    Route::get('/api/productos/buscar',   [\App\Http\Controllers\Facturacion\FacturaUiController::class, 'apiProductosBuscar'])->name('productos.buscar');
-    Route::get('/api/sat/clave-prod-serv',[\App\Http\Controllers\Facturacion\FacturaUiController::class, 'apiSatClaveProdServ'])->name('sat.clave_prod_serv');
-    Route::get('/api/sat/clave-unidad',   [\App\Http\Controllers\Facturacion\FacturaUiController::class, 'apiSatClaveUnidad'])->name('sat.clave_unidad');
+    // --- API auxiliares (UI de facturas) ---
+    Route::get('/api/series/next',          [FacturaUiController::class, 'apiSeriesNext'])->name('series.next');
+    Route::get('/api/productos/buscar',     [FacturaUiController::class, 'apiProductosBuscar'])->name('productos.buscar');
+    Route::get('/api/sat/clave-prod-serv',  [FacturaUiController::class, 'apiSatClaveProdServ'])->name('sat.clave_prod_serv');
+    Route::get('/api/sat/clave-unidad',     [FacturaUiController::class, 'apiSatClaveUnidad'])->name('sat.clave_unidad');
 
     // Quick update de cliente desde el modal lateral en create de facturas
     Route::put('/catalogos/clientes/{cliente}/quick-update', [ClientesController::class, 'quickUpdate'])->name('clientes.quickUpdate');
 
-   // ======================== FACTURAS - UI NUEVA ========================
+
+    // ======================== FACTURAS - UI NUEVA ========================
     Route::prefix('facturacion/facturas')->name('facturas.')->group(function () {
-    // Pantalla de creación
-    Route::get('/crear', [FacturaUiController::class, 'create'])->name('create');
+        // Crear (pantalla principal)
+        Route::get('/crear',   [FacturaUiController::class, 'create'])->name('create');
 
-    // Preview (validación obligatoria)
-    Route::post('/preview', [FacturaUiController::class, 'preview'])->name('preview');
+        // Preview (validación obligatoria) - SOLO POST
+        Route::post('/preview', [FacturaUiController::class, 'preview'])->name('preview');
 
-    // Guardado (borrador)
-    Route::post('/guardar', [FacturaUiController::class, 'store'])->name('guardar');
+        // Guardar BORRADOR (desde preview)
+        Route::post('/guardar', [FacturaUiController::class, 'store'])->name('guardar');
 
-    // Timbrado desde el preview
-    Route::post('/timbrar', [FacturaUiController::class, 'timbrar'])->name('timbrar');
+        // Timbrar (desde preview)
+        Route::post('/timbrar', [FacturaUiController::class, 'timbrar'])->name('timbrar');
 
-    // Borradores
-    Route::get('/borradores', [FacturaBorradoresController::class, 'index'])->name('borradores.index');
-    Route::post('/borradores', [FacturaBorradoresController::class, 'store'])->name('borradores.store');
-    Route::get('/borradores/{borrador}/editar', [FacturaBorradoresController::class, 'loadIntoCreate'])->name('borradores.load');
-    Route::delete('/borradores/{borrador}', [FacturaBorradoresController::class, 'destroy'])->name('borradores.destroy');
-});
-
-
-
+        // --------- Borradores ----------
+        Route::get('/borradores',                   [FacturaBorradoresController::class, 'index'])->name('borradores.index');
+        Route::post('/borradores',                  [FacturaBorradoresController::class, 'store'])->name('borradores.store');
+        Route::get('/borradores/{borrador}/editar', [FacturaBorradoresController::class, 'loadIntoCreate'])->name('borradores.load');
+        Route::delete('/borradores/{borrador}',     [FacturaBorradoresController::class, 'destroy'])->name('borradores.destroy');
     });
 
-// ======================== ÁREA AUTENTICADA ========================
-Route::middleware(['auth'])->group(function () {
 
     // ======================== CATÁLOGOS ========================
     Route::prefix('catalogos')->group(function () {
@@ -110,6 +104,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('search/unidades', [CatalogSearchController::class, 'unidades'])->name('catalogos.search.unidades');
     });
 
+
     // ======================== FACTURACIÓN (historiales) ========================
     Route::prefix('facturacion')->group(function () {
         // Historial Facturas
@@ -139,6 +134,7 @@ Route::middleware(['auth'])->group(function () {
     // Nóminas crear (ruta fuera del prefijo anterior si así lo prefieres)
     Route::get('/nominas/crear', fn () => view('wip', ['titulo' => 'Nueva Nómina']))->name('nominas.create');
 
+
     // ======================== CONFIGURACIÓN ========================
     Route::prefix('configuracion')->group(function () {
         // Perfil del RFC
@@ -152,6 +148,7 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/sellos/{csd}',        [SellosController::class, 'destroy'])->name('sellos.destroy');
     });
 
+
     // ======================== ADMIN ========================
     Route::prefix('admin')->group(function () {
         // Timbres
@@ -159,8 +156,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/timbres',        [TimbresController::class, 'store'])->name('admin.timbres.store');
         Route::get('/timbres/history', [TimbresController::class, 'history'])->name('admin.timbres.history');
 
-        // PAC playground (si lo usas)
-        Route::get('/pac',        [PacPlaygroundController::class, 'index'])->name('admin.pac.index')->middleware('can:admin-only');
+        // PAC playground
+        Route::get('/pac',         [PacPlaygroundController::class, 'index'])->name('admin.pac.index')->middleware('can:admin-only');
         Route::post('/pac/timbrar',[PacPlaygroundController::class, 'timbrar'])->name('admin.pac.timbrar')->middleware('can:admin-only');
     });
 });
