@@ -45,24 +45,16 @@ Route::middleware(['auth'])->group(function () {
 
     // ======================== FACTURAS - UI NUEVA ========================
     Route::prefix('facturacion/facturas')->name('facturas.')->group(function () {
-        // Crear (pantalla principal)
-        Route::get('/crear',   [FacturaUiController::class, 'create'])->name('create');
+    Route::get('/crear',    [FacturaUiController::class, 'create'])->name('create');
+    Route::post('/preview', [FacturaUiController::class, 'preview'])->name('preview');
+    Route::post('/guardar', [FacturaUiController::class, 'store'])->name('guardar');
+    Route::post('/timbrar', [FacturaUiController::class, 'timbrar'])->name('timbrar');
 
-        // Preview (validación obligatoria) - SOLO POST
-        Route::post('/preview', [FacturaUiController::class, 'preview'])->name('preview');
-
-        // Guardar BORRADOR (desde preview)
-        Route::post('/guardar', [FacturaUiController::class, 'store'])->name('guardar');
-
-        // Timbrar (desde preview)
-        Route::post('/timbrar', [FacturaUiController::class, 'timbrar'])->name('timbrar');
-
-        // --------- Borradores ----------
-        Route::get('/borradores',                   [FacturaBorradoresController::class, 'index'])->name('borradores.index');
-        Route::post('/borradores',                  [FacturaBorradoresController::class, 'store'])->name('borradores.store');
-        Route::get('/borradores/{borrador}/editar', [FacturaBorradoresController::class, 'loadIntoCreate'])->name('borradores.load');
-        Route::delete('/borradores/{borrador}',     [FacturaBorradoresController::class, 'destroy'])->name('borradores.destroy');
-    });
+    Route::get('/borradores',                   [FacturaBorradoresController::class, 'index'])->name('borradores.index');
+    Route::post('/borradores',                  [FacturaBorradoresController::class, 'store'])->name('borradores.store');
+    Route::get('/borradores/{borrador}/editar', [FacturaBorradoresController::class, 'loadIntoCreate'])->name('borradores.load');
+    Route::delete('/borradores/{borrador}',     [FacturaBorradoresController::class, 'destroy'])->name('borradores.destroy');
+});
 
 
     // ======================== CATÁLOGOS ========================

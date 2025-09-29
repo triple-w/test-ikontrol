@@ -140,17 +140,33 @@
   </div>
 
   {{-- Acciones obligatorias desde preview --}}
-  <form method="POST" action="{{ route('facturas.guardar') }}" class="mt-6 inline-block">
+  <div class="mt-6">
+    {{-- Botón que NO envía ningún form padre, sólo dispara el form oculto --}}
+    <button type="button"
+            class="btn bg-gray-100 hover:opacity-90"
+            onclick="document.getElementById('formGuardarBorrador').submit()">
+      Guardar borrador
+    </button>
+
+    {{-- Botón Timbrar igual, con form independiente (oculto) --}}
+    <button type="button"
+            class="btn bg-violet-600 hover:bg-violet-700 text-white ml-2"
+            onclick="document.getElementById('formTimbrar').submit()">
+      Timbrar
+    </button>
+  </div>
+
+  {{-- FORMULARIOS OCULTOS, INDEPENDIENTES (NO anidados) --}}
+  <form id="formGuardarBorrador" method="POST" action="{{ route('facturas.guardar') }}" style="display:none">
     @csrf
     <input type="hidden" name="payload" value="{{ e(json_encode($comprobante, JSON_UNESCAPED_UNICODE)) }}">
-    <button type="submit" class="btn bg-gray-100 hover:opacity-90">Guardar borrador</button>
   </form>
 
-  <form method="POST" action="{{ route('facturas.timbrar') }}" class="mt-6 inline-block ml-2">
+  <form id="formTimbrar" method="POST" action="{{ route('facturas.timbrar') }}" style="display:none">
     @csrf
     <input type="hidden" name="payload" value="{{ e(json_encode($comprobante, JSON_UNESCAPED_UNICODE)) }}">
-    <button type="submit" class="btn bg-violet-600 hover:bg-violet-700 text-white">Timbrar</button>
   </form>
+
 
 
 </div>
