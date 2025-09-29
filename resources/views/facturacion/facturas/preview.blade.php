@@ -8,11 +8,10 @@
     <h1 class="text-2xl font-bold">Previsualización</h1>
     <div class="flex items-center gap-2">
       <div class="text-sm text-gray-500">RFC emisor: <span class="font-medium">{{ $emisor_rfc }}</span></div>
-      <form method="POST" action="{{ route('facturas.guardar') }}">
-        @csrf
-        <input type="hidden" name="payload" value="{{ e(json_encode($comprobante)) }}">
-        <button class="btn bg-gray-100 hover:opacity-90">Guardar borrador</button>
-      </form>
+      <button type="button" class="px-3 py-2 rounded-md border text-sm"
+        onclick="if (window.history.length > 1) { history.back(); } else { window.location='{{ route('facturas.create') }}'; }">
+        ← Regresar
+      </button>
 
     </div>
   </div>
@@ -128,11 +127,12 @@
   </div>
 
   {{-- Acciones obligatorias desde preview --}}
-  <form method="POST" action="{{ route('facturas.borradores.store') }}" class="mt-6 inline-block">
+  <form method="POST" action="{{ route('facturas.guardar') }}" class="mt-6 inline-block">
     @csrf
-    <input type="hidden" name="payload" value="{{ e(json_encode($comprobante)) }}">
+    <input type="hidden" name="payload" value="{{ e(json_encode($comprobante, JSON_UNESCAPED_UNICODE)) }}">
     <button class="btn bg-gray-100 hover:opacity-90">Guardar borrador</button>
   </form>
+
   <form method="POST" action="{{ route('facturas.timbrar') }}" class="mt-6 inline-block ml-2">
     @csrf
     <input type="hidden" name="payload" value="{{ e(json_encode($comprobante)) }}">

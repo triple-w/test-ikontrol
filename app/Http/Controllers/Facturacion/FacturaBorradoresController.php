@@ -26,21 +26,14 @@ class FacturaBorradoresController extends Controller
     // Abre el CREATE precargando payload del borrador
     public function openInCreate(FacturaBorrador $borrador)
     {
-        // Puedes validar ownership si aplica:
-        // abort_unless($borrador->user_id === auth()->id(), 403);
-
         $payload = $borrador->payload ?? [];
-
-        // Inyecta cliente_id si falta en payload:
         if (!isset($payload['cliente_id']) && $borrador->cliente_id) {
             $payload['cliente_id'] = (int) $borrador->cliente_id;
         }
+        session(['factura_restore_payload' => $payload]); // <--- esta clave
 
-        session(['factura_prefill' => $payload]);
-
-        return redirect()
-            ->route('facturas.create')
-            ->with('ok', 'Borrador #'.$borrador->id.' cargado en creación.');
+        return redirect()->route('facturas.create')
+                        ->with('ok', 'Borrador #'.$borrador->id.' cargado en creación.');
     }
 
     public function destroy(FacturaBorrador $borrador)
