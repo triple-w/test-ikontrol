@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use App\Models\FacturaBorrador;
-
+use Illuminate\Support\Facades\Log;
 
 // Eloquent models
 use App\Models\Folio;
