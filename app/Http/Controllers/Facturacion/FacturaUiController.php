@@ -305,7 +305,12 @@ class FacturaUiController extends Controller
      * Guardar (borrador) — alias
      * POST /facturacion/facturas  y /facturacion/facturas/guardar
      */
-    public function store(\Illuminate\Http\Request $r) { return $this->guardar($r); }
+
+    public function store(\Illuminate\Http\Request $r)
+    {
+        return $this->guardar($r);
+    }
+
 
     public function guardar(\Illuminate\Http\Request $r)
     {
@@ -315,7 +320,6 @@ class FacturaUiController extends Controller
             return back()->with('error','Payload incompleto.');
         }
 
-        // Recalcula totales
         $subtotal=0; $descuento=0; $impuestos=0;
         foreach ($payload['conceptos'] as $c) {
             $sub = (float)$c['cantidad'] * (float)$c['precio'];
@@ -335,23 +339,20 @@ class FacturaUiController extends Controller
 
         $b = new \App\Models\FacturaBorrador();
         $b->user_id        = auth()->id();
-        $b->rfc_usuario_id = (int) session('rfc_usuario_id');
+        $b->rfc_usuario_id = (int) session('rfc_usuario_id'); // puede ser null si tu BD lo permite
         $b->cliente_id     = (int) $payload['cliente_id'];
         $b->tipo           = $payload['tipo_comprobante'] ?? 'I';
         $b->serie          = $payload['serie'] ?? null;
         $b->folio          = (string)($payload['folio'] ?? '');
         $b->fecha          = $payload['fecha'] ?? now();
-
         $b->metodo_pago    = $payload['metodo_pago'] ?? 'PUE';
         $b->forma_pago     = $payload['forma_pago'] ?? '99';
         $b->comentarios_pdf= $payload['comentarios_pdf'] ?? null;
-
         $b->subtotal       = round($subtotal, 2);
         $b->descuento      = round($descuento, 2);
         $b->impuestos      = round($impuestos, 2);
         $b->total          = round($total, 2);
-
-        $b->payload        = $payload;
+        $b->payload        = $payload;   // requiere cast a array en el modelo
         $b->estatus        = 'borrador';
         $b->save();
 
