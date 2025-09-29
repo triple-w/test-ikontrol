@@ -281,7 +281,7 @@ class FacturaUiController extends Controller
         }
         $total = $subtotal - $descuento + $impuestos;
 
-        session()->put('factura_preview_payload', $comprobante);
+        session()->put('factura_preview_payload', $payload);
 
         return view('facturacion.facturas.preview', [
             'emisor_rfc'  => session('rfc_seleccionado'),
