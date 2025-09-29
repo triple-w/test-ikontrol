@@ -43,6 +43,11 @@
     $maxFecha = $maxFecha ?? now()->format('Y-m-d\TH:i');
   @endphp
 
+  @php $restore = session('factura_restore_payload'); @endphp
+  @if($restore)
+    <script>window.__RESTORE_FACTURA__ = {!! json_encode($restore) !!};</script>
+  @endif
+
   <div
     x-data='facturaForm({
       rfcUsuarioId: {{ (int) $rfcUsuarioId }},
@@ -608,12 +613,77 @@
     },
 
     // ----- init -----
+    // ----- init -----
     init(){
-      // Serie/Folio para Ingreso como default:
-      this.pedirSiguienteFolio();
-      // al menos una fila de concepto para que veas inputs
-      this.agregarConcepto();
+      // ¿Tenemos payload de regreso desde PREVIEW?
+      const restore = window.__RESTORE_FACTURA__ || null;
+
+      if (restore && typeof restore === 'object') {
+        // Campos principales
+        if (restore.tipo_comprobante) this.form.tipo_comprobante = restore.tipo_comprobante;
+        if (typeof restore.serie !== 'undefined') this.form.serie = restore.serie || '';
+        if (typeof restore.folio !== 'undefined') this.form.folio = String(restore.folio ?? '');
+        if (restore.fecha) this.form.fecha = restore.fecha;
+        if (restore.metodo_pago) this.form.metodo_pago = restore.metodo_pago;
+        if (restore.forma_pago) this.form.forma_pago = restore.forma_pago;
+        if (typeof restore.comentarios_pdf !== 'undefined') this.form.comentarios_pdf = restore.comentarios_pdf || '';
+
+        // Cliente
+        if (restore.cliente_id) {
+          this.form.cliente_id = Number(restore.cliente_id);
+          // Sincroniza derivados (clienteSel, clienteEdit)
+          this.onClienteChange();
+        }
+
+        // Conceptos
+        if (Array.isArray(restore.conceptos) && restore.conceptos.length) {
+          // Clona profundo y asegura estructura esperada
+          this.form.conceptos = restore.conceptos.map(c => {
+            const r = {
+              uid: this.uid(),
+              descripcion: c.descripcion || '',
+              clave_prod_serv: c.clave_prod_serv || '',
+              clave_unidad: c.clave_unidad || '',
+              unidad: c.unidad || '',
+              cantidad: Number(c.cantidad || 0),
+              precio: Number(c.precio || 0),
+              descuento: Number(c.descuento || 0),
+              impuestos: Array.isArray(c.impuestos) ? c.impuestos.map(i => ({
+                tipo: i.tipo || 'T',     // T=Traslado, R=Retención
+                impuesto: i.impuesto || 'IVA',
+                factor: i.factor || 'Tasa', // Tasa/Exento
+                tasa: Number(i.tasa || 0),  // porcentaje ej. 16
+              })) : [],
+            };
+            return r;
+          });
+          // Recalcula totales con los conceptos restaurados
+          this.recalcularTotales();
+        } else {
+          // Si NO venían conceptos, deja uno por defecto como antes
+          this.agregarConcepto();
+        }
+
+        // Relacionados
+        if (Array.isArray(restore.relacionados)) {
+          // Cada elemento esperado: { tipo_relacion: '01..07', uuid: '...' }
+          this.form.relacionados = restore.relacionados.map(r => ({
+            tipo_relacion: r.tipo_relacion || '',
+            uuid: r.uuid || '',
+          }));
+        }
+
+        // Si NO vino serie/folio, pide el siguiente automáticamente:
+        if (!this.form.serie || !this.form.folio) {
+          this.pedirSiguienteFolio();
+        }
+      } else {
+        // Flujo normal (cuando NO vienes del preview)
+        this.pedirSiguienteFolio();
+        this.agregarConcepto();
+      }
     },
+
 
     // ----- comprobante -----
     onTipoComprobanteChange(){ this.pedirSiguienteFolio(); },

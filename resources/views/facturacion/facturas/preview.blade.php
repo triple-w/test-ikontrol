@@ -8,7 +8,11 @@
     <h1 class="text-2xl font-bold">Previsualización</h1>
     <div class="flex items-center gap-2">
       <div class="text-sm text-gray-500">RFC emisor: <span class="font-medium">{{ $emisor_rfc }}</span></div>
-      <a href="{{ route('facturas.create') }}" class="px-3 py-2 rounded-md border text-sm">← Regresar</a>
+      <form method="POST" action="{{ route('facturas.prefill') }}">
+        @csrf
+        <input type="hidden" name="payload" value="{{ e(json_encode($comprobante)) }}">
+        <button type="submit" class="px-3 py-2 rounded-md border text-sm">← Regresar</button>
+      </form>
     </div>
   </div>
 
@@ -123,7 +127,7 @@
   </div>
 
   {{-- Acciones obligatorias desde preview --}}
-  <form method="POST" action="{{ route('facturas.guardar') }}" class="mt-6 inline-block">
+  <form method="POST" action="{{ route('facturas.borradores.store') }}" class="mt-6 inline-block">
     @csrf
     <input type="hidden" name="payload" value="{{ e(json_encode($comprobante)) }}">
     <button class="btn bg-gray-100 hover:opacity-90">Guardar borrador</button>

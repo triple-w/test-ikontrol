@@ -14,12 +14,14 @@ use App\Http\Controllers\Facturacion\NominasHistorialController;
 use App\Http\Controllers\Facturacion\ComplementosHistorialController;
 use App\Http\Controllers\Facturacion\FacturasController;
 use App\Http\Controllers\Facturacion\FacturaUiController;
-
+use App\Http\Controllers\Facturacion\FacturaBorradoresController;
 use App\Http\Controllers\Configuracion\SellosController;
 use App\Http\Controllers\Configuracion\PerfilRfcController;
 
 use App\Http\Controllers\Admin\TimbresController;
 use App\Http\Controllers\Admin\PacPlaygroundController;
+
+    
 
 // Home -> Dashboard
 Route::middleware(['auth'])->get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -46,7 +48,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/facturacion/facturas/crear', [FacturaUiController::class, 'create'])->name('facturas.create');
 
     // Preview (validación obligatoria)
-    Route::post('/facturacion/facturas/preview', [FacturaUiController::class, 'preview'])->name('facturas.preview');
+    //Route::post('/facturacion/facturas/preview', [FacturaUiController::class, 'preview'])->name('facturas.preview');
 
     // Guardado (borrador)
     Route::post('/facturacion/facturas',            [FacturaUiController::class, 'store'])->name('facturas.store');
@@ -56,7 +58,22 @@ Route::middleware(['auth'])->group(function () {
     // Timbrado desde el preview
     Route::post('/facturacion/facturas/timbrar',    [FacturaUiController::class, 'timbrar'])->name('facturas.timbrar');
 
-});
+
+
+
+    Route::prefix('facturacion/facturas')->name('facturas.')->group(function () {
+        Route::post('/preview', [FacturaUiController::class, 'preview'])->name('preview');
+        Route::post('/restore-from-preview', [FacturaUiController::class, 'restoreFromPreview'])->name('restore');
+
+        // Borradores
+        Route::get('/borradores', [FacturaBorradoresController::class, 'index'])->name('borradores.index');
+        Route::post('/borradores', [FacturaBorradoresController::class, 'store'])->name('borradores.store');
+        Route::get('/borradores/{borrador}/editar', [FacturaBorradoresController::class, 'loadIntoCreate'])->name('borradores.load');
+        Route::delete('/borradores/{borrador}', [FacturaBorradoresController::class, 'destroy'])->name('borradores.destroy');
+    });
+
+
+    });
 
 // ======================== ÁREA AUTENTICADA ========================
 Route::middleware(['auth'])->group(function () {

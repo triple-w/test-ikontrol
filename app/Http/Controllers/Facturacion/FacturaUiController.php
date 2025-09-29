@@ -21,6 +21,7 @@ class FacturaUiController extends Controller
      */
     public function create(Request $request)
     {
+        $prefill = session()->pull('factura_prefill');
         $rfcActivo = session('rfc_seleccionado');
         $rfcUsuarioId = (int) session('rfc_usuario_id');
 
@@ -108,6 +109,7 @@ class FacturaUiController extends Controller
             'metodosPago'   => $metodosPago,
             'minFecha'      => $minFecha,
             'maxFecha'      => $maxFecha,
+            'prefill' => $prefill,
         ]);
     }
 
@@ -279,6 +281,8 @@ class FacturaUiController extends Controller
         }
         $total = $subtotal - $descuento + $impuestos;
 
+        session()->put('factura_preview_payload', $comprobante);
+
         return view('facturacion.facturas.preview', [
             'emisor_rfc'  => session('rfc_seleccionado'),
             'comprobante' => $payload,
@@ -286,6 +290,16 @@ class FacturaUiController extends Controller
             'totales'     => compact('subtotal','descuento','impuestos','total'),
         ]);
     }
+
+    public function prefillFromPreview(\Illuminate\Http\Request $r)
+    {
+        $payload = json_decode($r->input('payload','{}'), true) ?: [];
+        // Guarda en sesión y redirige a CREATE
+        session(['factura_prefill' => $payload]);
+        return redirect()->route('facturas.create');
+    }
+
+
 
     /**
      * Guardar (borrador) — alias
