@@ -127,7 +127,7 @@
   </div>
 
   {{-- Acciones obligatorias desde preview --}}
-  <form method="POST" action="{{ route('facturas.guardar') }}" class="mt-6 inline-block">
+    <form method="POST" action="{{ route('facturas.guardar') }}">
     @csrf
     <input type="hidden" name="payload" value="{{ e(json_encode($comprobante, JSON_UNESCAPED_UNICODE)) }}">
     <button class="btn bg-gray-100 hover:opacity-90">Guardar borrador</button>
