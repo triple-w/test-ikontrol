@@ -51,7 +51,7 @@ Route::middleware(['auth'])->group(function () {
     //Route::post('/facturacion/facturas/preview', [FacturaUiController::class, 'preview'])->name('facturas.preview');
 
     // Guardado (borrador)
-    Route::post('/facturacion/facturas',            [FacturaUiController::class, 'store'])->name('facturas.store');
+    //Route::post('/facturacion/facturas',            [FacturaUiController::class, 'store'])->name('facturas.store');
     // Alias que usa la vista de preview:
     Route::post('/facturacion/facturas/guardar',    [FacturaUiController::class, 'store'])->name('facturas.guardar');
 
