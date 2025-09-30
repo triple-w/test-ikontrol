@@ -45,7 +45,8 @@
             </td>
             <td class="px-3 py-2">{{ $r->created_at?->format('Y-m-d H:i') }}</td>
             <td class="px-3 py-2">
-              <a href="{{ route('facturas.borradores.open', $r) }}" class="text-violet-700 hover:underline">Editar</a>
+              
+              <a href="{{ route('facturas.borradores.load', $r) }}" class="text-violet-700 hover:underline">Editar</a>
               <form action="{{ route('facturas.borradores.destroy', $r) }}" method="POST" class="inline"
                     onsubmit="return confirm('¿Eliminar borrador #{{ $r->id }}?')">
                 @csrf @method('DELETE')

@@ -50,9 +50,16 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/guardar', [FacturaUiController::class, 'store'])->name('guardar');
     Route::post('/timbrar', [FacturaUiController::class, 'timbrar'])->name('timbrar');
 
+    // --------- Borradores ----------
     Route::get('/borradores',                   [FacturaBorradoresController::class, 'index'])->name('borradores.index');
     Route::post('/borradores',                  [FacturaBorradoresController::class, 'store'])->name('borradores.store');
+
+    // Ruta principal para abrir/editar un borrador en CREATE
     Route::get('/borradores/{borrador}/editar', [FacturaBorradoresController::class, 'loadIntoCreate'])->name('borradores.load');
+
+    // Alias para compatibilidad con la vista que usa 'facturas.borradores.open'
+    Route::get('/borradores/{borrador}/open',   [FacturaBorradoresController::class, 'loadIntoCreate'])->name('borradores.open');
+
     Route::delete('/borradores/{borrador}',     [FacturaBorradoresController::class, 'destroy'])->name('borradores.destroy');
 });
 
