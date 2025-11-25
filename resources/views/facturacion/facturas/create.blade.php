@@ -49,18 +49,18 @@
     @endif
 
     <div x-data='facturaForm({
-          rfcUsuarioId: {{ (int) $rfcUsuarioId }},
-          clientes: {!! $clientesJson !!},
-          minFecha: "{{ $minFecha }}",
-          maxFecha: "{{ $maxFecha }}",
-          apiSeriesNext: "{{ url('/api/series/next') }}",
-          apiProductosBuscar: "{{ url('/api/productos/buscar') }}",
-          apiSatProdServ: "{{ url('/api/sat/clave-prod-serv') }}",
-          apiSatUnidad: "{{ url('/api/sat/clave-unidad') }}",
-          routeClienteUpdateBase: "{{ url('/catalogos/clientes') }}",
-          routePreview: "{{ route('facturas.preview') }}",
-          csrf: "{{ csrf_token() }}"
-        })' class="space-y-6">
+        rfcUsuarioId: {{ (int) $rfcUsuarioId }},
+        clientes: {!! $clientesJson !!},
+        minFecha: "{{ $minFecha }}",
+        maxFecha: "{{ $maxFecha }}",
+        apiSeriesNext: "{{ url('/api/series/next') }}",
+        apiProductosBuscar: "{{ url('/api/productos/buscar') }}",
+        apiSatProdServ: "{{ url('/api/sat/clave-prod-serv') }}",
+        apiSatUnidad: "{{ url('/api/sat/clave-unidad') }}",
+        routeClienteUpdateBase: "{{ url('/catalogos/clientes') }}",
+        routePreview: "{{ route('facturas.preview') }}",
+        csrf: "{{ csrf_token() }}"
+      })' class="space-y-6">
       {{-- DATOS DEL COMPROBANTE --}}
       <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
         <div class="flex items-center justify-between mb-4">
@@ -112,8 +112,8 @@
 
           {{--Uso de CFDI --}}
           <div class="sm:col-span-2">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Uso CFDI</label>
-            <select name="uso_cfdi" id="uso_cfdi" x-model="form.uso_cfdi" class="form-select w-full">
+            <label class="block text-sm font-medium text-gray-700">Uso CFDI</label>
+            <select name="uso_cfdi" id="uso_cfdi" x-model="form.uso_cfdi" class="mt-1 block w-full border rounded-md p-2">
               <option value="">-- Selecciona --</option>
               <option value="G01">G01 - Adquisición de mercancías</option>
               <option value="G02">G02 - Devoluciones, descuentos o bonificaciones</option>
@@ -417,7 +417,7 @@
 
         {{-- Panel (derecha) --}}
         <div class="absolute right-0 top-0 h-full w-full max-w-lg bg-white dark:bg-gray-900 shadow-xl
-                    z-50 overflow-y-auto" @click.stop x-transition:enter="transform transition ease-in-out duration-200"
+                  z-50 overflow-y-auto" @click.stop x-transition:enter="transform transition ease-in-out duration-200"
           x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
           x-transition:leave="transform transition ease-in-out duration-200" x-transition:leave-start="translate-x-0"
           x-transition:leave-end="translate-x-full" @keydown.escape.window="open=false">
@@ -484,7 +484,7 @@
         <div class="absolute inset-0 bg-black/40" @click="open=false"></div>
 
         <div class="absolute right-0 top-0 h-full w-full max-w-lg bg-white dark:bg-gray-900 shadow-xl
-                    z-50 overflow-y-auto" @click.stop x-transition:enter="transform transition ease-in-out duration-200"
+                  z-50 overflow-y-auto" @click.stop x-transition:enter="transform transition ease-in-out duration-200"
           x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
           x-transition:leave="transform transition ease-in-out duration-200" x-transition:leave-start="translate-x-0"
           x-transition:leave-end="translate-x-full" @keydown.escape.window="open=false">
@@ -562,7 +562,7 @@
         <div class="absolute inset-0 bg-black/40" @click="open=false"></div>
 
         <div class="absolute right-0 top-0 h-full w-full max-w-xl bg-white dark:bg-gray-900 shadow-xl
-                    z-50 overflow-y-auto" @click.stop x-transition:enter="transform transition ease-in-out duration-200"
+                  z-50 overflow-y-auto" @click.stop x-transition:enter="transform transition ease-in-out duration-200"
           x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
           x-transition:leave="transform transition ease-in-out duration-200" x-transition:leave-start="translate-x-0"
           x-transition:leave-end="translate-x-full" @keydown.escape.window="open=false">
@@ -614,6 +614,7 @@
         forma_pago: '03',     // Transferencia por default
         comentarios_pdf: '',
         cliente_id: '',
+        conceptos: [],
         conceptos: [],
         relacionados: [],
         uso_cfdi: '', // Agregado uso_cfdi
