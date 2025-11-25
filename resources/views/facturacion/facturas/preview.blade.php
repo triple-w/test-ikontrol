@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Previsualización de factura')
+@section('title','Previsualización de factura')
 
 @section('content')
 <div class="max-w-5xl mx-auto px-4 py-6">
@@ -37,7 +37,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
       <div>
         <div class="text-gray-500">Tipo</div>
-        <div class="font-semibold">{{ $comprobante['tipo_comprobante'] == 'I' ? 'Ingreso' : 'Egreso' }}</div>
+        <div class="font-semibold">{{ $comprobante['tipo_comprobante']=='I' ? 'Ingreso' : 'Egreso' }}</div>
       </div>
       <div>
         <div class="text-gray-500">Serie/Folio</div>
@@ -45,8 +45,7 @@
       </div>
       <div>
         <div class="text-gray-500">Fecha</div>
-        <div class="font-semibold">{{ \Illuminate\Support\Carbon::parse($comprobante['fecha'])->format('Y-m-d H:i') }}
-        </div>
+        <div class="font-semibold">{{ \Illuminate\Support\Carbon::parse($comprobante['fecha'])->format('Y-m-d H:i') }}</div>
       </div>
       <div>
         <div class="text-gray-500">Método de pago</div>
@@ -59,10 +58,6 @@
       <div>
         <div class="text-gray-500">Cliente</div>
         <div class="font-semibold">{{ $cliente->razon_social }} — {{ $cliente->rfc }}</div>
-      </div>
-      <div>
-        <div class="text-gray-500">Uso CFDI</div>
-        <div class="font-semibold">{{ $comprobante['uso_cfdi'] ?? '—' }}</div>
       </div>
     </div>
   </div>
@@ -83,8 +78,8 @@
       <tbody>
         @foreach($comprobante['conceptos'] as $c)
           @php
-            $sub = (float) $c['cantidad'] * (float) $c['precio'];
-            $des = (float) ($c['descuento'] ?? 0);
+            $sub = (float)$c['cantidad'] * (float)$c['precio'];
+            $des = (float)($c['descuento'] ?? 0);
             $importe = max($sub - $des, 0);
           @endphp
           <tr class="border-b border-gray-100">
@@ -95,10 +90,10 @@
                 <div class="text-xs text-gray-500">Unidad: {{ $c['unidad'] }}</div>
               @endif
             </td>
-            <td class="px-2 py-2 text-right align-top">{{ number_format($c['cantidad'], 3) }}</td>
-            <td class="px-2 py-2 text-right align-top">{{ number_format($c['precio'], 2) }}</td>
-            <td class="px-2 py-2 text-right align-top">{{ number_format($des, 2) }}</td>
-            <td class="px-2 py-2 text-right align-top">{{ number_format($importe, 2) }}</td>
+            <td class="px-2 py-2 text-right align-top">{{ number_format($c['cantidad'],3) }}</td>
+            <td class="px-2 py-2 text-right align-top">{{ number_format($c['precio'],2) }}</td>
+            <td class="px-2 py-2 text-right align-top">{{ number_format($des,2) }}</td>
+            <td class="px-2 py-2 text-right align-top">{{ number_format($importe,2) }}</td>
           </tr>
         @endforeach
       </tbody>
@@ -140,26 +135,24 @@
   {{-- Totales --}}
   <div class="flex justify-end">
     <div class="w-full max-w-sm space-y-1 text-sm">
-      <div class="flex justify-between"><span
-          class="text-gray-500">Subtotal</span><span>{{ number_format($totales['subtotal'], 2) }}</span></div>
-      <div class="flex justify-between"><span
-          class="text-gray-500">Descuento</span><span>{{ number_format($totales['descuento'], 2) }}</span></div>
-      <div class="flex justify-between"><span
-          class="text-gray-500">Impuestos</span><span>{{ number_format($totales['impuestos'], 2) }}</span></div>
-      <div class="flex justify-between font-semibold text-gray-700">
-        <span>Total</span><span>{{ number_format($totales['total'], 2) }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Subtotal</span><span>{{ number_format($totales['subtotal'],2) }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Descuento</span><span>{{ number_format($totales['descuento'],2) }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Impuestos</span><span>{{ number_format($totales['impuestos'],2) }}</span></div>
+      <div class="flex justify-between font-semibold text-gray-700"><span>Total</span><span>{{ number_format($totales['total'],2) }}</span></div>
     </div>
   </div>
 
   {{-- Acciones --}}
   <div class="mt-6">
-    <button type="button" class="btn bg-gray-100 hover:opacity-90"
-      onclick="document.getElementById('formGuardarBorrador').submit()">
+    <button type="button"
+            class="btn bg-gray-100 hover:opacity-90"
+            onclick="document.getElementById('formGuardarBorrador').submit()">
       Guardar borrador
     </button>
 
-    <button type="button" class="btn bg-violet-600 hover:bg-violet-700 text-white ml-2"
-      onclick="document.getElementById('formTimbrar').submit()">
+    <button type="button"
+            class="btn bg-violet-600 hover:bg-violet-700 text-white ml-2"
+            onclick="document.getElementById('formTimbrar').submit()">
       Timbrar
     </button>
   </div>
