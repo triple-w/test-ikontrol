@@ -31,4 +31,10 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'timbradorxpress' => [
+        'base_url'     => env('TXP_BASE_URL', 'https://dev.timbradorxpress.mx'),
+        'apikey'       => env('TXP_APIKEY'),
+        'pdf_template' => env('TXP_PDF_TEMPLATE', '1'),
+    ],
+
 ];
