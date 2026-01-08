@@ -36,12 +36,6 @@ class FacturaBorradoresController extends Controller
                         ->with('ok', 'Borrador #'.$borrador->id.' cargado en creación.');
     }
 
-    public function loadIntoCreate(FacturaBorrador $borrador)
-    {
-        // Alias para compatibilidad con la ruta/vista que llama a loadIntoCreate
-        return $this->openInCreate($borrador);
-    }
-
     public function destroy(FacturaBorrador $borrador)
     {
         // abort_unless($borrador->user_id === auth()->id(), 403);
