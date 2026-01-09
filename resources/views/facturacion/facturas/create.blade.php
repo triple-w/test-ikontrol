@@ -44,8 +44,8 @@
   @endphp
 
   @php $restore = session('factura_restore_payload'); @endphp
-  @if($restore)
-    <script>window.__RESTORE_FACTURA__ = {!! json_encode($restore) !!};</script>
+  @if(!empty($prefill))
+    <script>window.__RESTORE_FACTURA__ = {!! json_encode($prefill) !!};</script>
   @endif
 
   <div
@@ -119,6 +119,38 @@
             </option>
         @endforeach
         </select>
+
+        {{-- Uso CFDI (SAT) --}}
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Uso CFDI</label>
+          <select x-model="form.uso_cfdi" class="form-select w-full">
+            <option value="">— Selecciona —</option>
+            <option value="G01">G01 — Adquisición de mercancías</option>
+            <option value="G02">G02 — Devoluciones, descuentos o bonificaciones</option>
+            <option value="G03">G03 — Gastos en general</option>
+            <option value="I01">I01 — Construcciones</option>
+            <option value="I02">I02 — Mobiliario y equipo de oficina</option>
+            <option value="I03">I03 — Equipo de transporte</option>
+            <option value="I04">I04 — Equipo de cómputo y accesorios</option>
+            <option value="I05">I05 — Dados, troqueles, moldes, matrices y herramental</option>
+            <option value="I06">I06 — Comunicaciones telefónicas</option>
+            <option value="I07">I07 — Comunicaciones satelitales</option>
+            <option value="I08">I08 — Otra maquinaria y equipo</option>
+            <option value="D01">D01 — Honorarios médicos, dentales y hospitalarios</option>
+            <option value="D02">D02 — Gastos médicos por incapacidad o discapacidad</option>
+            <option value="D03">D03 — Gastos funerales</option>
+            <option value="D04">D04 — Donativos</option>
+            <option value="D05">D05 — Intereses reales por créditos hipotecarios</option>
+            <option value="D06">D06 — Aportaciones voluntarias al SAR</option>
+            <option value="D07">D07 — Primas por seguros de gastos médicos</option>
+            <option value="D08">D08 — Transportación escolar obligatoria</option>
+            <option value="D09">D09 — Depósitos en cuentas para ahorro / planes personales</option>
+            <option value="D10">D10 — Servicios educativos (colegiaturas)</option>
+            <option value="S01">S01 — Sin efectos fiscales</option>
+          </select>
+          <p class="text-xs text-gray-500 mt-1">Este valor es obligatorio para timbrar.</p>
+        </div>
+
 
 
 
@@ -295,12 +327,35 @@
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Totales</h2>
       </div>
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="p-3 rounded-lg border border-gray-100 dark:border-gray-700">
+            <div class="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">Impuestos locales</div>
+
+            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" class="rounded" x-model="form.impuestos_locales.ret_5_millar" @change="recalcularTotales()">
+              Retención local 5 al millar (0.50%)
+            </label>
+
+            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mt-2">
+              <input type="checkbox" class="rounded" x-model="form.impuestos_locales.ret_cedular_2" @change="recalcularTotales()">
+              Retención Cedular (2.00%)
+            </label>
+
+            <p class="text-xs text-gray-500 mt-2">
+              Estas retenciones se calculan sobre (subtotal - descuento) y disminuyen el total.
+            </p>
+          </div>
+        </div>
       <div class="flex items-center justify-between">
         <div class="text-sm text-gray-500 dark:text-gray-400">Los totales se actualizan automáticamente.</div>
         <div class="w-full max-w-sm space-y-1 text-sm">
           <div class="flex justify-between"><span class="text-gray-500">Subtotal</span><span x-text="money(totales.subtotal)"></span></div>
           <div class="flex justify-between"><span class="text-gray-500">Descuento</span><span x-text="money(totales.descuento)"></span></div>
           <div class="flex justify-between"><span class="text-gray-500">Impuestos</span><span x-text="money(totales.impuestos)"></span></div>
+          <div class="flex justify-between" x-show="totales.ret_local_total > 0">
+            <span class="text-gray-500">Retenciones locales</span>
+            <span x-text="money(totales.ret_local_total)"></span>
+          </div>
           <div class="flex justify-between font-semibold text-gray-700 dark:text-gray-100"><span>Total</span><span x-text="money(totales.total)"></span></div>
         </div>
       </div>
@@ -340,6 +395,38 @@
           </div>
         </template>
       </div>
+      {{-- COMPLEMENTO DE EXPORTACIÓN --}}
+      <div class="mt-6 pt-4 border-t border-gray-100 dark:border-gray-700">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">Complemento de exportación</h3>
+          <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input type="checkbox" class="rounded" x-model="form.complemento_exportacion.habilitar">
+            Habilitar
+          </label>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3" x-show="form.complemento_exportacion.habilitar">
+          <div>
+            <label class="text-xs text-gray-500">Exportación</label>
+            <select class="form-select w-full" x-model="form.exportacion">
+              <option value="01">01 - No aplica</option>
+              <option value="02">02 - Definitiva</option>
+              <option value="03">03 - Temporal</option>
+            </select>
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="text-xs text-gray-500">Observación (opcional)</label>
+            <input type="text" class="form-input w-full" x-model="form.complemento_exportacion.observacion" placeholder="(opcional)">
+          </div>
+
+          <p class="md:col-span-3 text-xs text-gray-500">
+            Por ahora guardamos estos datos en el payload/borrador. El mapeo al XML lo hacemos cuando conectemos el timbrado.
+          </p>
+        </div>
+      </div>
+
+
     </div>
 
     {{-- ACCIONES --}}
@@ -570,11 +657,24 @@
       fecha: opts.maxFecha, // por defecto "ahora"
       metodo_pago: 'PUE',
       forma_pago: '03',     // Transferencia por default
+      uso_cfdi: 'G03', // default práctico
       comentarios_pdf: '',
       cliente_id: '',
       conceptos: [],
       relacionados: [],
+
+       // Exportación
+      exportacion: '01',
+      complemento_exportacion: {
+        habilitar: false,
+        observacion: '',
     },
+
+    impuestos_locales: {
+      ret_5_millar: false,
+      ret_cedular_2: false,
+    },
+
     clientes: opts.clientes || [],
     clienteSel: {},
     clienteEdit: {},
@@ -627,6 +727,23 @@
         if (restore.metodo_pago) this.form.metodo_pago = restore.metodo_pago;
         if (restore.forma_pago) this.form.forma_pago = restore.forma_pago;
         if (typeof restore.comentarios_pdf !== 'undefined') this.form.comentarios_pdf = restore.comentarios_pdf || '';
+
+        if (typeof restore.uso_cfdi !== 'undefined') this.form.uso_cfdi = restore.uso_cfdi || 'G03';
+
+        // Exportación
+        if (typeof restore.exportacion !== 'undefined') this.form.exportacion = restore.exportacion || '01';
+        if (restore.complemento_exportacion && typeof restore.complemento_exportacion === 'object') {
+          this.form.complemento_exportacion.habilitar = !!restore.complemento_exportacion.habilitar;
+          this.form.complemento_exportacion.observacion = restore.complemento_exportacion.observacion || '';
+        }
+
+        // Impuestos locales
+        if (restore.impuestos_locales && typeof restore.impuestos_locales === 'object') {
+          this.form.impuestos_locales.ret_5_millar = !!restore.impuestos_locales.ret_5_millar;
+          this.form.impuestos_locales.ret_cedular_2 = !!restore.impuestos_locales.ret_cedular_2;
+        }
+
+
 
         // Cliente
         if (restore.cliente_id) {
@@ -832,11 +949,12 @@
     // totales
     recalcularTotales(){
       let subtotal=0, descuento=0, impuestos=0;
+
       for (const r of this.form.conceptos){
         const base = this.baseRow(r);
         subtotal += Number(r.cantidad||0) * Number(r.precio||0);
         descuento += Number(r.descuento||0);
-        // impuestos por concepto
+
         for (const i of (r.impuestos||[])){
           if (i.factor==='Exento') continue;
           const tasa = Number(i.tasa||0)/100;
@@ -844,9 +962,19 @@
           impuestos += (i.tipo==='R' ? -m : m);
         }
       }
-      const total = subtotal - descuento + impuestos;
-      this.totales = { subtotal, descuento, impuestos, total };
+
+      const baseLocal = Math.max(subtotal - descuento, 0);
+
+      const ret5 = this.form.impuestos_locales?.ret_5_millar ? (baseLocal * 0.005) : 0;
+      const retCed = this.form.impuestos_locales?.ret_cedular_2 ? (baseLocal * 0.02) : 0;
+
+      const retLocalTotal = ret5 + retCed;
+
+      const total = subtotal - descuento + impuestos - retLocalTotal;
+
+      this.totales = { subtotal, descuento, impuestos, ret5, retCed, ret_local_total: retLocalTotal, total };
     },
+
 
     // relacionados
     agregarRelacionado(){ this.form.relacionados.push({ uid:this.uid(), tipo_relacion:'', uuid:'' }); },

@@ -11,11 +11,12 @@ class FacturaBorradoresController extends Controller
     public function index(Request $request)
     {
         $q = trim($request->get('q',''));
+
         $rows = FacturaBorrador::query()
             ->when($q, function($w) use ($q){
                 $w->where('serie', 'like', "%$q%")
                   ->orWhere('folio', 'like', "%$q%")
-                  ->orWhere('comentarios_pdf', 'like', "%$q%");
+                  ->orWhere('tipo', 'like', "%$q%");
             })
             ->orderByDesc('id')
             ->paginate(20);
@@ -27,18 +28,27 @@ class FacturaBorradoresController extends Controller
     public function openInCreate(FacturaBorrador $borrador)
     {
         $payload = $borrador->payload ?? [];
+
         if (!isset($payload['cliente_id']) && $borrador->cliente_id) {
             $payload['cliente_id'] = (int) $borrador->cliente_id;
         }
-        session(['factura_restore_payload' => $payload]); // <--- esta clave
+
+        session(['factura_restore_payload' => $payload]);
 
         return redirect()->route('facturas.create')
-                        ->with('ok', 'Borrador #'.$borrador->id.' cargado en creación.');
+            ->with('ok', 'Borrador #'.$borrador->id.' cargado en creación.');
+    }
+
+    /**
+     * Alias para compatibilidad con rutas/vistas antiguas que llaman loadIntoCreate
+     */
+    public function loadIntoCreate(FacturaBorrador $borrador)
+    {
+        return $this->openInCreate($borrador);
     }
 
     public function destroy(FacturaBorrador $borrador)
     {
-        // abort_unless($borrador->user_id === auth()->id(), 403);
         $borrador->delete();
         return back()->with('ok', 'Borrador eliminado.');
     }
@@ -51,12 +61,13 @@ class FacturaBorradoresController extends Controller
             return back()->with('error','Payload incompleto.');
         }
 
-        // Recalcula totales (mismo cálculo que usas en FacturaUiController@guardar)
         $subtotal=0; $descuento=0; $impuestos=0;
+
         foreach ($payload['conceptos'] as $c) {
             $sub = (float)$c['cantidad'] * (float)$c['precio'];
             $des = (float)($c['descuento'] ?? 0);
             $base = max($sub - $des, 0);
+
             $subtotal += $sub;
             $descuento += $des;
 
@@ -67,12 +78,14 @@ class FacturaBorradoresController extends Controller
                 $impuestos += (($i['tipo'] ?? 'T') === 'R') ? -$m : $m;
             }
         }
+
         $total = $subtotal - $descuento + $impuestos;
 
         $b = new \App\Models\FacturaBorrador();
         $b->user_id        = auth()->id();
         $b->rfc_usuario_id = (int) session('rfc_usuario_id');
         $b->cliente_id     = (int) $payload['cliente_id'];
+
         $b->tipo           = $payload['tipo_comprobante'] ?? 'I';
         $b->serie          = $payload['serie'] ?? null;
         $b->folio          = (string)($payload['folio'] ?? '');
@@ -87,11 +100,12 @@ class FacturaBorradoresController extends Controller
         $b->impuestos      = round($impuestos, 2);
         $b->total          = round($total, 2);
 
+        // Aquí ya se guardará también uso_cfdi/exportacion/impuestos_locales/etc
         $b->payload        = $payload;
+
         $b->estatus        = 'borrador';
         $b->save();
 
         return back()->with('ok', 'Borrador guardado (#'.$b->id.').');
     }
-
 }
