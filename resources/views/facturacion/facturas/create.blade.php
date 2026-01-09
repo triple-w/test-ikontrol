@@ -43,27 +43,27 @@
     $maxFecha = $maxFecha ?? now()->format('Y-m-d\TH:i');
   @endphp
 
-  @php $restore = session('factura_restore_payload'); @endphp
   @if(!empty($prefill))
     <script>window.__RESTORE_FACTURA__ = {!! json_encode($prefill) !!};</script>
   @endif
 
   <div
-    x-data='facturaForm({
-      rfcUsuarioId: {{ (int) $rfcUsuarioId }},
-      clientes: {!! $clientesJson !!},
-      minFecha: "{{ $minFecha }}",
-      maxFecha: "{{ $maxFecha }}",
-      apiSeriesNext: "{{ url('/api/series/next') }}",
-      apiProductosBuscar: "{{ url('/api/productos/buscar') }}",
-      apiSatProdServ: "{{ url('/api/sat/clave-prod-serv') }}",
-      apiSatUnidad: "{{ url('/api/sat/clave-unidad') }}",
-      routeClienteUpdateBase: "{{ url('/catalogos/clientes') }}",
-      routePreview: "{{ route('facturas.preview') }}",
-      csrf: "{{ csrf_token() }}"
-    })'
-    class="space-y-6"
-  >
+      x-data="facturaForm({
+        rfcUsuarioId: {{ (int) $rfcUsuarioId }},
+        clientes: @json($clientesJson, JSON_UNESCAPED_UNICODE),
+        minFecha: @json($minFecha),
+        maxFecha: @json($maxFecha),
+        apiSeriesNext: @json(url('/api/series/next')),
+        apiProductosBuscar: @json(url('/api/productos/buscar')),
+        apiSatProdServ: @json(url('/api/sat/clave-prod-serv')),
+        apiSatUnidad: @json(url('/api/sat/clave-unidad')),
+        routeClienteUpdateBase: @json(url('/catalogos/clientes')),
+        routePreview: @json(route('facturas.preview')),
+        csrf: @json(csrf_token())
+      })"
+      class="space-y-6"
+    >
+
     {{-- DATOS DEL COMPROBANTE --}}
     <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
       <div class="flex items-center justify-between mb-4">
