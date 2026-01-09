@@ -21,7 +21,7 @@
     $rfcUsuarioId = $rfcUsuarioId ?? (session('rfc_usuario_id') ?? session('rfc_activo_id') ?? 0);
 
     // serializa clientes con los campos que pediste
-    $clientesJson = ($clientes ?? collect())->map(function ($c) {
+    $clientesArr = ($clientes ?? collect())->map(function ($c) {
       return [
         'id'            => $c->id,
         'rfc'           => $c->rfc,
@@ -36,7 +36,8 @@
         'pais'          => $c->pais,
         'email'         => $c->email,
       ];
-    })->values()->toJson(JSON_UNESCAPED_UNICODE);
+    })->values()->all();
+
 
     // Ventana SAT: 72h hacia atrás, máximo "ahora"
     $minFecha = $minFecha ?? now()->copy()->subHours(72)->format('Y-m-d\TH:i');
@@ -44,13 +45,10 @@
   @endphp
 
   @if(!empty($prefill))
-    <script>window.__RESTORE_FACTURA__ = {!! json_encode($prefill) !!};</script>
-  @endif
-
-  <div
-      x-data="facturaForm({
+    <script>
+      window.__FACTURA_CREATE_OPTS__ = {
         rfcUsuarioId: {{ (int) $rfcUsuarioId }},
-        clientes: @json($clientesJson, JSON_UNESCAPED_UNICODE),
+        clientes: @json($clientesArr, JSON_UNESCAPED_UNICODE),
         minFecha: @json($minFecha),
         maxFecha: @json($maxFecha),
         apiSeriesNext: @json(url('/api/series/next')),
@@ -60,9 +58,14 @@
         routeClienteUpdateBase: @json(url('/catalogos/clientes')),
         routePreview: @json(route('facturas.preview')),
         csrf: @json(csrf_token())
-      })"
-      class="space-y-6"
-    >
+      };
+    </script>
+  @endif
+
+  <div
+    x-data="facturaForm(window.__FACTURA_CREATE_OPTS__)"
+    class="space-y-6"
+  >
 
     {{-- DATOS DEL COMPROBANTE --}}
     <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl p-4">
@@ -676,6 +679,8 @@
     },
 
     clientes: opts.clientes || [],
+    minFecha: opts.minFecha,
+    maxFecha: opts.maxFecha,
     clienteSel: {},
     clienteEdit: {},
 
